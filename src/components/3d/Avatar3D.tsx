@@ -2,37 +2,44 @@ import { Canvas } from '@react-three/fiber'
 import { OrbitControls, Environment } from '@react-three/drei'
 import { Suspense } from 'react'
 import VRMAvatar from './VRMAvatar'
+import type { VRM } from '@pixiv/three-vrm'
 
 interface Avatar3DProps {
   vrmUrl: string | null
   onLoadError?: (error: string) => void
+  onVRMLoaded?: (vrm: VRM) => void
 }
 
 function LoadingFallback() {
   return (
-    <mesh>
+    <mesh position={[0, 1, 0]}>
       <boxGeometry args={[0.5, 0.5, 0.5]} />
       <meshStandardMaterial color="#666" wireframe />
     </mesh>
   )
 }
 
-export default function Avatar3D({ vrmUrl, onLoadError }: Avatar3DProps) {
+export default function Avatar3D({ vrmUrl, onLoadError, onVRMLoaded }: Avatar3DProps) {
   return (
     <div className="relative w-full h-full bg-gradient-to-b from-gray-800 to-gray-900">
       <Canvas
         camera={{ position: [0, 1.2, 2.5], fov: 35 }}
         shadows
       >
-        <ambientLight intensity={0.5} />
+        <ambientLight intensity={0.6} />
         <directionalLight position={[5, 5, 5]} intensity={1} castShadow />
-        <directionalLight position={[-5, 3, -5]} intensity={0.3} />
+        <directionalLight position={[-5, 3, -5]} intensity={0.4} />
+        <pointLight position={[0, 2, 2]} intensity={0.3} />
 
         <Suspense fallback={<LoadingFallback />}>
           {vrmUrl ? (
-            <VRMAvatar url={vrmUrl} onError={onLoadError} />
+            <VRMAvatar
+              url={vrmUrl}
+              onError={onLoadError}
+              onVRMLoaded={onVRMLoaded}
+            />
           ) : (
-            <PlaceholderAvatar />
+            <PlaceholderText />
           )}
         </Suspense>
 
@@ -46,49 +53,23 @@ export default function Avatar3D({ vrmUrl, onLoadError }: Avatar3DProps) {
 
         {/* Floor */}
         <mesh rotation={[-Math.PI / 2, 0, 0]} position={[0, 0, 0]} receiveShadow>
-          <planeGeometry args={[10, 10]} />
+          <circleGeometry args={[3, 32]} />
           <meshStandardMaterial color="#1a1a2e" />
         </mesh>
 
         <Environment preset="city" />
       </Canvas>
 
-      {/* Overlay for no VRM loaded */}
-      {!vrmUrl && (
-        <div className="absolute inset-0 flex items-center justify-center pointer-events-none">
-          <div className="bg-gray-800/80 px-6 py-4 rounded-lg text-center">
-            <p className="text-gray-300">No VRM avatar loaded</p>
-            <p className="text-gray-500 text-sm mt-1">Upload a .vrm file to get started</p>
-          </div>
+      {/* Loading indicator */}
+      {vrmUrl && (
+        <div className="absolute bottom-4 left-4 text-xs text-gray-500">
+          Drag to rotate • Scroll to zoom
         </div>
       )}
     </div>
   )
 }
 
-function PlaceholderAvatar() {
-  return (
-    <group position={[0, 0.9, 0]}>
-      {/* Simple humanoid placeholder */}
-      {/* Head */}
-      <mesh position={[0, 0.7, 0]}>
-        <sphereGeometry args={[0.15, 16, 16]} />
-        <meshStandardMaterial color="#e8beac" />
-      </mesh>
-      {/* Body */}
-      <mesh position={[0, 0.3, 0]}>
-        <capsuleGeometry args={[0.15, 0.4, 8, 16]} />
-        <meshStandardMaterial color="#4a5568" />
-      </mesh>
-      {/* Legs */}
-      <mesh position={[-0.08, -0.2, 0]}>
-        <capsuleGeometry args={[0.06, 0.3, 8, 16]} />
-        <meshStandardMaterial color="#2d3748" />
-      </mesh>
-      <mesh position={[0.08, -0.2, 0]}>
-        <capsuleGeometry args={[0.06, 0.3, 8, 16]} />
-        <meshStandardMaterial color="#2d3748" />
-      </mesh>
-    </group>
-  )
+function PlaceholderText() {
+  return null // Just show empty scene, UI will have the prompt
 }

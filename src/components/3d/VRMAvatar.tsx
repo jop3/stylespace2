@@ -6,9 +6,10 @@ import type { VRM } from '@pixiv/three-vrm'
 interface VRMAvatarProps {
   url: string
   onError?: (error: string) => void
+  onVRMLoaded?: (vrm: VRM) => void
 }
 
-export default function VRMAvatar({ url, onError }: VRMAvatarProps) {
+export default function VRMAvatar({ url, onError, onVRMLoaded }: VRMAvatarProps) {
   const { vrm, loading, error } = useVRM(url)
   const vrmRef = useRef<VRM | null>(null)
 
@@ -20,7 +21,10 @@ export default function VRMAvatar({ url, onError }: VRMAvatarProps) {
 
   useEffect(() => {
     vrmRef.current = vrm
-  }, [vrm])
+    if (vrm && onVRMLoaded) {
+      onVRMLoaded(vrm)
+    }
+  }, [vrm, onVRMLoaded])
 
   // Update VRM each frame (for animations, look-at, etc.)
   useFrame((_state, delta) => {

@@ -1,16 +1,19 @@
-import { useState } from 'react'
+import { useState, useCallback } from 'react'
 import './index.css'
 import Avatar2D from './components/Avatar2D'
 import Avatar3D from './components/3d/Avatar3D'
 import ClothingPanel from './components/ClothingPanel'
 import ImageImporter from './components/ImageImporter'
 import VRMUploader from './components/3d/VRMUploader'
+import VRMGallery from './components/3d/VRMGallery'
+import TextureSwapper from './components/3d/TextureSwapper'
 import type { ClothingItem, ClothingType } from './types'
+import type { VRM } from '@pixiv/three-vrm'
 
 type ViewMode = '2d' | '3d'
 
 function App() {
-  const [viewMode, setViewMode] = useState<ViewMode>('2d')
+  const [viewMode, setViewMode] = useState<ViewMode>('3d') // Default to 3D now
 
   // 2D State
   const [clothingItems, setClothingItems] = useState<ClothingItem[]>([])
@@ -28,6 +31,7 @@ function App() {
   // 3D VRM State
   const [vrmUrl, setVrmUrl] = useState<string | null>(null)
   const [vrmFileName, setVrmFileName] = useState<string | null>(null)
+  const [currentVRM, setCurrentVRM] = useState<VRM | null>(null)
 
   const handleImageImport = (imageUrl: string, type: ClothingType, name: string) => {
     const newItem: ClothingItem = {
@@ -62,13 +66,26 @@ function App() {
   }
 
   const handleVRMUpload = (url: string, fileName: string) => {
-    // Revoke old URL to prevent memory leak
-    if (vrmUrl) {
+    if (vrmUrl && vrmUrl.startsWith('blob:')) {
       URL.revokeObjectURL(vrmUrl)
     }
     setVrmUrl(url)
     setVrmFileName(fileName)
+    setCurrentVRM(null) // Reset until loaded
   }
+
+  const handleVRMSelect = (url: string, name: string) => {
+    if (vrmUrl && vrmUrl.startsWith('blob:')) {
+      URL.revokeObjectURL(vrmUrl)
+    }
+    setVrmUrl(url)
+    setVrmFileName(name)
+    setCurrentVRM(null)
+  }
+
+  const handleVRMLoaded = useCallback((vrm: VRM) => {
+    setCurrentVRM(vrm)
+  }, [])
 
   return (
     <div className="w-full h-full flex">
@@ -77,7 +94,10 @@ function App() {
         {viewMode === '2d' ? (
           <Avatar2D activeClothing={activeClothing} />
         ) : (
-          <Avatar3D vrmUrl={vrmUrl} />
+          <Avatar3D
+            vrmUrl={vrmUrl}
+            onVRMLoaded={handleVRMLoaded}
+          />
         )}
 
         {/* Mode Switcher (floating) */}
@@ -124,24 +144,18 @@ function App() {
           </>
         ) : (
           <>
+            <VRMGallery onSelect={handleVRMSelect} currentUrl={vrmUrl} />
+
             <VRMUploader onUpload={handleVRMUpload} currentFile={vrmFileName} />
 
+            <TextureSwapper vrm={currentVRM} />
+
             <div className="bg-gray-800 rounded-lg p-4">
-              <h2 className="text-lg font-semibold mb-2">3D Controls</h2>
+              <h2 className="text-lg font-semibold mb-2">Controls</h2>
               <ul className="text-sm text-gray-400 space-y-1">
                 <li>• Drag to rotate camera</li>
                 <li>• Scroll to zoom in/out</li>
                 <li>• Right-drag to pan</li>
-              </ul>
-            </div>
-
-            <div className="bg-gray-800 rounded-lg p-4">
-              <h2 className="text-lg font-semibold mb-2">Coming Soon</h2>
-              <ul className="text-sm text-gray-500 space-y-1">
-                <li>• Change VRM outfit textures</li>
-                <li>• Pose animations</li>
-                <li>• Expression controls</li>
-                <li>• Screenshot/export</li>
               </ul>
             </div>
           </>
