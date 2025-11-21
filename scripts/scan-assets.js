@@ -4,6 +4,7 @@ import fs from 'fs'
 import path from 'path'
 import { fileURLToPath } from 'url'
 import AdmZip from 'adm-zip'
+import { createExtractorFromFile } from 'node-unrar-js'
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url))
 const downloadsDir = path.join(__dirname, '../public/downloads')
@@ -25,8 +26,18 @@ function extractZip(zipPath, destDir) {
   zip.extractAllTo(destDir, true) // true = overwrite
 }
 
-// Recursively extract all zips, including nested ones
-function extractAllZips(dir, depth = 0) {
+// Extract a rar file using node-unrar-js (pure JS, cross-platform)
+async function extractRar(rarPath, destDir) {
+  const extractor = await createExtractorFromFile({ filepath: rarPath, targetPath: destDir })
+  const { files } = extractor.extract()
+  // Consume the generator to actually extract
+  for (const file of files) {
+    // Files are extracted as the generator is consumed
+  }
+}
+
+// Recursively extract all archives (zip and rar), including nested ones
+async function extractAllArchives(dir, depth = 0) {
   if (depth > 5) return 0 // Prevent infinite recursion
   if (!fs.existsSync(dir)) return 0
 
@@ -35,19 +46,24 @@ function extractAllZips(dir, depth = 0) {
 
   for (const item of items) {
     const fullPath = path.join(dir, item.name)
+    const lowerName = item.name.toLowerCase()
 
     if (item.isDirectory()) {
       // Recurse into subdirectories
-      totalExtracted += extractAllZips(fullPath, depth + 1)
-    } else if (item.name.toLowerCase().endsWith('.zip')) {
+      totalExtracted += await extractAllArchives(fullPath, depth + 1)
+    } else if (lowerName.endsWith('.zip') || lowerName.endsWith('.rar')) {
       console.log(`  ${'  '.repeat(depth)}Extracting: ${item.name}`)
       try {
         // Extract to same directory
-        extractZip(fullPath, dir)
+        if (lowerName.endsWith('.zip')) {
+          extractZip(fullPath, dir)
+        } else {
+          await extractRar(fullPath, dir)
+        }
         fs.unlinkSync(fullPath)
         totalExtracted++
-        // Re-scan this directory for newly extracted zips
-        totalExtracted += extractAllZips(dir, depth)
+        // Re-scan this directory for newly extracted archives
+        totalExtracted += await extractAllArchives(dir, depth)
       } catch (err) {
         console.error(`  Failed to extract ${item.name}:`, err.message)
       }
@@ -163,7 +179,7 @@ function flattenSingleFolders(categoryDir) {
   return flattened
 }
 
-function scanDirectory() {
+async function scanDirectory() {
   const assets = []
   const seenIds = new Set()
 
@@ -177,10 +193,10 @@ function scanDirectory() {
 
     console.log(`\nProcessing ${category}...`)
 
-    // Extract all zips (including nested)
-    const extracted = extractAllZips(categoryDir)
+    // Extract all archives (zip and rar, including nested)
+    const extracted = await extractAllArchives(categoryDir)
     if (extracted > 0) {
-      console.log(`  Extracted ${extracted} zip file(s)`)
+      console.log(`  Extracted ${extracted} archive(s)`)
     }
 
     // Flatten unnecessary folder nesting
@@ -228,7 +244,7 @@ if (!fs.existsSync(downloadsDir)) {
 console.log('Scanning downloads folder...')
 console.log(`Location: ${downloadsDir}`)
 
-const assets = scanDirectory()
+const assets = await scanDirectory()
 
 fs.writeFileSync(manifestPath, JSON.stringify(assets, null, 2))
 
