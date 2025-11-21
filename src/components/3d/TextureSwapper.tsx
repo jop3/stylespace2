@@ -33,6 +33,9 @@ export default function TextureSwapper({ vrm, onTextureApplied }: TextureSwapper
   const fileInputRef = useRef<HTMLInputElement>(null)
   const [meshGroups, setMeshGroups] = useState<Map<string, THREE.Mesh[]>>(new Map())
   const [selectedGroup, setSelectedGroup] = useState<string | null>(null)
+  const [selectedMesh, setSelectedMesh] = useState<string | null>(null)
+  const [allMeshes, setAllMeshes] = useState<{ name: string; mesh: THREE.Mesh }[]>([])
+  const [groupedMode, setGroupedMode] = useState(true)
   const [showPrompts, setShowPrompts] = useState(false)
   const [activePrompt, setActivePrompt] = useState<keyof typeof TEXTURE_PROMPTS>('pattern')
 
@@ -41,13 +44,21 @@ export default function TextureSwapper({ vrm, onTextureApplied }: TextureSwapper
     if (!vrm) {
       setMeshGroups(new Map())
       setSelectedGroup(null)
+      setAllMeshes([])
+      setSelectedMesh(null)
       return
     }
 
     const groups = new Map<string, THREE.Mesh[]>()
+    const meshList: { name: string; mesh: THREE.Mesh }[] = []
+
     vrm.scene.traverse((object) => {
       if (object instanceof THREE.Mesh && object.material) {
-        // Extract base name (e.g., "Face_1" -> "Face", "Body" -> "Body")
+        // Add to mesh list for individual selection
+        const meshName = object.name || `Mesh ${meshList.length}`
+        meshList.push({ name: meshName, mesh: object })
+
+        // Group by base name
         const baseName = (object.name || 'Unknown').replace(/_?\d+$/, '') || 'Other'
         if (!groups.has(baseName)) {
           groups.set(baseName, [])
@@ -55,19 +66,38 @@ export default function TextureSwapper({ vrm, onTextureApplied }: TextureSwapper
         groups.get(baseName)!.push(object)
       }
     })
+
+    setAllMeshes(meshList)
     setMeshGroups(groups)
+
     const firstGroup = groups.keys().next().value
     if (firstGroup) {
       setSelectedGroup(firstGroup)
+    }
+    if (meshList.length > 0) {
+      setSelectedMesh(meshList[0].name)
     }
   }, [vrm])
 
   const handleFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0]
-    if (!file || !selectedGroup) return
+    if (!file) return
 
-    const groupMeshes = meshGroups.get(selectedGroup)
-    if (!groupMeshes || groupMeshes.length === 0) return
+    let meshesToApply: THREE.Mesh[] = []
+
+    if (groupedMode) {
+      // Apply to all meshes in the selected group
+      if (!selectedGroup) return
+      const groupMeshes = meshGroups.get(selectedGroup)
+      if (!groupMeshes || groupMeshes.length === 0) return
+      meshesToApply = groupMeshes
+    } else {
+      // Apply to single selected mesh
+      if (!selectedMesh) return
+      const meshInfo = allMeshes.find((m) => m.name === selectedMesh)
+      if (!meshInfo) return
+      meshesToApply = [meshInfo.mesh]
+    }
 
     const reader = new FileReader()
     reader.onload = (event) => {
@@ -79,8 +109,8 @@ export default function TextureSwapper({ vrm, onTextureApplied }: TextureSwapper
         texture.wrapT = THREE.RepeatWrapping
         texture.colorSpace = THREE.SRGBColorSpace
 
-        // Apply texture to all meshes in the group
-        groupMeshes.forEach((mesh) => {
+        // Apply texture to selected meshes
+        meshesToApply.forEach((mesh) => {
           const materials = Array.isArray(mesh.material)
             ? mesh.material
             : [mesh.material]
@@ -122,20 +152,45 @@ export default function TextureSwapper({ vrm, onTextureApplied }: TextureSwapper
     <div className="bg-gray-800 rounded-lg p-4 space-y-3">
       <h2 className="text-lg font-semibold">Change Textures</h2>
 
-      {/* Mesh group selector */}
-      <div>
-        <label className="block text-sm text-gray-400 mb-1">Select Part</label>
-        <select
-          value={selectedGroup || ''}
-          onChange={(e) => setSelectedGroup(e.target.value)}
-          className="w-full bg-gray-900 text-white p-2 rounded border border-gray-700"
-        >
-          {Array.from(meshGroups.entries()).map(([groupName, groupMeshes]) => (
-            <option key={groupName} value={groupName}>
-              {groupName} ({groupMeshes.length})
-            </option>
-          ))}
-        </select>
+      {/* Mesh selector with toggle */}
+      <div className="space-y-2">
+        {/* Toggle between grouped and individual mode */}
+        <div className="flex items-center gap-2">
+          <label className="block text-sm text-gray-400">Select Part</label>
+          <button
+            onClick={() => setGroupedMode(!groupedMode)}
+            className="text-xs px-2 py-1 rounded bg-gray-700 hover:bg-gray-600 transition-colors"
+          >
+            {groupedMode ? 'Grouped' : 'Individual'} ⇄
+          </button>
+        </div>
+
+        {/* Mesh selector */}
+        {groupedMode ? (
+          <select
+            value={selectedGroup || ''}
+            onChange={(e) => setSelectedGroup(e.target.value)}
+            className="w-full bg-gray-900 text-white p-2 rounded border border-gray-700"
+          >
+            {Array.from(meshGroups.entries()).map(([groupName, groupMeshes]) => (
+              <option key={groupName} value={groupName}>
+                {groupName} ({groupMeshes.length})
+              </option>
+            ))}
+          </select>
+        ) : (
+          <select
+            value={selectedMesh || ''}
+            onChange={(e) => setSelectedMesh(e.target.value)}
+            className="w-full bg-gray-900 text-white p-2 rounded border border-gray-700"
+          >
+            {allMeshes.map((mesh, index) => (
+              <option key={`${mesh.name}-${index}`} value={mesh.name}>
+                {mesh.name}
+              </option>
+            ))}
+          </select>
+        )}
       </div>
 
       {/* Texture upload */}
