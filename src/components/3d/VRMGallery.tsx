@@ -72,6 +72,30 @@ export const SAMPLE_VRMS: SampleVRM[] = [
     author: 'MJMoonbow',
     license: 'CC0',
   },
+  {
+    id: 'sendagaya-shino',
+    name: 'Shino',
+    url: '/vrm/sendagaya-shino.vrm',
+    thumbnail: '👩‍🦰',
+    author: 'VRoid Project',
+    license: 'CC0',
+  },
+  {
+    id: 'sendagaya-shibu',
+    name: 'Shibu',
+    url: '/vrm/sendagaya-shibu.vrm',
+    thumbnail: '👱‍♀️',
+    author: 'VRoid Project',
+    license: 'CC0',
+  },
+  {
+    id: 'cryptovoxels',
+    name: 'CryptoVoxel',
+    url: '/vrm/cryptovoxels.vrm',
+    thumbnail: '🎮',
+    author: 'madjin',
+    license: 'CC0',
+  },
 ]
 
 interface VRMGalleryProps {
