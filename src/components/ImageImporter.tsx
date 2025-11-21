@@ -6,20 +6,54 @@ interface ImageImporterProps {
 }
 
 const CLOTHING_TYPES: { value: ClothingType; label: string }[] = [
-  { value: 'tshirt', label: 'T-Shirt' },
+  { value: 'tshirt', label: 'Top' },
   { value: 'pants', label: 'Pants' },
-  { value: 'shoes', label: 'Shoes' },
   { value: 'dress', label: 'Dress' },
+  { value: 'jacket', label: 'Jacket' },
+  { value: 'shoes', label: 'Shoes' },
+  { value: 'accessories', label: 'Accessory' },
 ]
 
-const PROMPT_TEMPLATES: Record<ClothingType, string> = {
-  tshirt: `Generate an image of a t-shirt design. The image should be a flat, front-facing t-shirt with a transparent or white background. Create a stylish design with patterns or graphics. Output a 512x512 PNG image.`,
+const PROMPT_TEMPLATES: Partial<Record<ClothingType, string>> = {
+  tshirt: `Generate a flat, front-facing t-shirt or top for a paper doll dress-up game.
+- MUST have transparent background (PNG)
+- Show the garment as if laid flat, front view
+- Size: 400x600 pixels (tall rectangle to fit avatar)
+- Position the top in the upper-middle area of the image
+- Style: [describe style you want]`,
 
-  pants: `Generate an image of pants/jeans. The image should be flat, front-facing pants with a transparent or white background. Show the full length from waist to ankles. Output a 512x512 PNG image.`,
+  pants: `Generate flat, front-facing pants/trousers for a paper doll dress-up game.
+- MUST have transparent background (PNG)
+- Show the pants as if laid flat, front view
+- Size: 400x600 pixels (tall rectangle to fit avatar)
+- Position pants in the lower-middle area of the image
+- Style: [describe style you want]`,
 
-  shoes: `Generate an image of a pair of shoes. The image should show shoes from a front/top angle with a transparent or white background. Make them stylish sneakers or casual shoes. Output a 512x512 PNG image.`,
+  dress: `Generate a flat, front-facing dress for a paper doll dress-up game.
+- MUST have transparent background (PNG)
+- Show the full dress as if laid flat, front view
+- Size: 400x600 pixels (tall rectangle to fit avatar)
+- Center the dress in the image, covering torso to legs area
+- Style: [describe style you want]`,
 
-  dress: `Generate an image of a dress. The image should be a flat, front-facing dress with a transparent or white background. Create an elegant or casual dress design. Output a 512x512 PNG image.`,
+  jacket: `Generate a flat, front-facing jacket/coat for a paper doll dress-up game.
+- MUST have transparent background (PNG)
+- Show the jacket as if laid flat, front view
+- Size: 400x600 pixels (tall rectangle to fit avatar)
+- Position in upper area, should layer over other tops
+- Style: [describe style you want]`,
+
+  shoes: `Generate flat, front-facing shoes for a paper doll dress-up game.
+- MUST have transparent background (PNG)
+- Show both shoes from front view
+- Size: 400x600 pixels (position shoes at bottom of image)
+- Style: [describe style you want]`,
+
+  accessories: `Generate a flat accessory for a paper doll dress-up game.
+- MUST have transparent background (PNG)
+- Size: 400x600 pixels
+- Position appropriately (hat at top, necklace at neck area, etc.)
+- Style: [describe what accessory you want]`,
 }
 
 export default function ImageImporter({ onImport }: ImageImporterProps) {
@@ -54,16 +88,19 @@ export default function ImageImporter({ onImport }: ImageImporterProps) {
   }
 
   const copyPromptToClipboard = () => {
-    navigator.clipboard.writeText(PROMPT_TEMPLATES[selectedType])
+    const prompt = PROMPT_TEMPLATES[selectedType]
+    if (prompt) {
+      navigator.clipboard.writeText(prompt)
+    }
   }
 
   return (
     <div className="bg-gray-800 rounded-lg p-4 space-y-3">
-      <h2 className="text-lg font-semibold">Create New Clothing</h2>
+      <h2 className="text-lg font-semibold">Add Clothing</h2>
 
       {/* Clothing Type Selector */}
       <div>
-        <label className="block text-sm text-gray-400 mb-1">Clothing Type</label>
+        <label className="block text-sm text-gray-400 mb-1">Type</label>
         <div className="flex flex-wrap gap-2">
           {CLOTHING_TYPES.map(({ value, label }) => (
             <button
@@ -87,25 +124,25 @@ export default function ImageImporter({ onImport }: ImageImporterProps) {
           onClick={() => setShowPrompt(!showPrompt)}
           className="text-sm text-blue-400 hover:text-blue-300"
         >
-          {showPrompt ? 'Hide' : 'Show'} LLM Prompt Helper
+          {showPrompt ? 'Hide' : 'Show'} AI Prompt Helper
         </button>
 
-        {showPrompt && (
+        {showPrompt && PROMPT_TEMPLATES[selectedType] && (
           <div className="mt-2 space-y-2">
             <textarea
               value={PROMPT_TEMPLATES[selectedType]}
               readOnly
-              className="w-full h-24 bg-gray-900 text-gray-300 text-xs p-2 rounded border border-gray-700"
+              className="w-full h-32 bg-gray-900 text-gray-300 text-xs p-2 rounded border border-gray-700"
             />
             <button
               onClick={copyPromptToClipboard}
               className="w-full py-1 bg-gray-700 hover:bg-gray-600 rounded text-sm"
             >
-              Copy Prompt to Clipboard
+              Copy Prompt
             </button>
             <p className="text-xs text-gray-500">
-              Use this prompt with DALL-E, Midjourney, or any image-generating AI.
-              Then upload the resulting image below.
+              Use with DALL-E, Midjourney, or any AI image generator.
+              Transparent PNG works best!
             </p>
           </div>
         )}
@@ -125,7 +162,7 @@ export default function ImageImporter({ onImport }: ImageImporterProps) {
 
       {/* Image Upload */}
       <div>
-        <label className="block text-sm text-gray-400 mb-1">Upload Image (PNG/JPG)</label>
+        <label className="block text-sm text-gray-400 mb-1">Upload Image</label>
         <input
           ref={fileInputRef}
           type="file"
@@ -153,7 +190,7 @@ export default function ImageImporter({ onImport }: ImageImporterProps) {
         disabled={!preview}
         className="w-full py-2 bg-blue-600 hover:bg-blue-500 disabled:bg-gray-700 disabled:text-gray-500 rounded font-semibold transition-colors"
       >
-        Apply to Avatar
+        Add to Wardrobe
       </button>
     </div>
   )
