@@ -1,5 +1,53 @@
 [
   {
+    "id": "grid-gray",
+    "name": "Grid Gray",
+    "path": "/downloads/Textures/grid-gray.png",
+    "category": "Textures"
+  },
+  {
+    "id": "grid-orange",
+    "name": "Grid Orange",
+    "path": "/downloads/Textures/grid-orange.png",
+    "category": "Textures"
+  },
+  {
+    "id": "kenney-dark-01",
+    "name": "Kenney Dark 01",
+    "path": "/downloads/Textures/kenney-dark-01.png",
+    "category": "Textures"
+  },
+  {
+    "id": "kenney-green-01",
+    "name": "Kenney Green 01",
+    "path": "/downloads/Textures/kenney-green-01.png",
+    "category": "Textures"
+  },
+  {
+    "id": "kenney-light-01",
+    "name": "Kenney Light 01",
+    "path": "/downloads/Textures/kenney-light-01.png",
+    "category": "Textures"
+  },
+  {
+    "id": "kenney-orange-01",
+    "name": "Kenney Orange 01",
+    "path": "/downloads/Textures/kenney-orange-01.png",
+    "category": "Textures"
+  },
+  {
+    "id": "kenney-purple-01",
+    "name": "Kenney Purple 01",
+    "path": "/downloads/Textures/kenney-purple-01.png",
+    "category": "Textures"
+  },
+  {
+    "id": "kenney-red-01",
+    "name": "Kenney Red 01",
+    "path": "/downloads/Textures/kenney-red-01.png",
+    "category": "Textures"
+  },
+  {
     "id": "matcap-blue",
     "name": "Matcap Blue",
     "path": "/downloads/Textures/matcap-blue.png",
