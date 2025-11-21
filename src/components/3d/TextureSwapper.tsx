@@ -90,9 +90,9 @@ export default function TextureSwapper({ vrm, onTextureApplied }: TextureSwapper
           : [meshInfo.mesh.material]
 
         const material = materials[meshInfo.materialIndex]
-        if (material instanceof THREE.MeshStandardMaterial ||
-            material instanceof THREE.MeshBasicMaterial) {
-          material.map = texture
+        // Handle various material types (MeshStandardMaterial, MeshBasicMaterial, MToonMaterial, etc.)
+        if (material && 'map' in material) {
+          (material as THREE.MeshStandardMaterial).map = texture
           material.needsUpdate = true
         }
 

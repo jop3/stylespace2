@@ -88,9 +88,9 @@ export default function DownloadedAssets({ vrm, onModelSelect, currentModelUrl }
         : [meshInfo.mesh.material]
 
       materials.forEach((material) => {
-        if (material instanceof THREE.MeshStandardMaterial ||
-            material instanceof THREE.MeshBasicMaterial) {
-          material.map = texture
+        // Handle various material types (MeshStandardMaterial, MeshBasicMaterial, MToonMaterial, etc.)
+        if (material && 'map' in material) {
+          (material as THREE.MeshStandardMaterial).map = texture
           material.needsUpdate = true
         }
       })
