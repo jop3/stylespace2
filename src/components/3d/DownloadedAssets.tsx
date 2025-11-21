@@ -38,6 +38,7 @@ export default function DownloadedAssets({ vrm, onModelSelect, currentModelUrl }
   const [selectedMesh, setSelectedMesh] = useState<string | null>(null)
   const [allMeshes, setAllMeshes] = useState<{ name: string; mesh: THREE.Mesh }[]>([])
   const [groupedMode, setGroupedMode] = useState(true)
+  const [originalTextures] = useState<Map<THREE.Material, THREE.Texture | null>>(new Map())
 
   // Load asset manifest on mount
   useEffect(() => {
@@ -54,6 +55,7 @@ export default function DownloadedAssets({ vrm, onModelSelect, currentModelUrl }
       setSelectedGroup(null)
       setAllMeshes([])
       setSelectedMesh(null)
+      originalTextures.clear()
       return
     }
 
@@ -65,6 +67,14 @@ export default function DownloadedAssets({ vrm, onModelSelect, currentModelUrl }
         // Add to mesh list for individual selection
         const meshName = object.name || `Mesh ${meshList.length}`
         meshList.push({ name: meshName, mesh: object })
+
+        // Store original textures
+        const materials = Array.isArray(object.material) ? object.material : [object.material]
+        materials.forEach((material) => {
+          if (material && 'map' in material && !originalTextures.has(material)) {
+            originalTextures.set(material, (material as any).map || null)
+          }
+        })
 
         // Group by base name
         const baseName = (object.name || 'Unknown').replace(/_?\d+$/, '') || 'Other'
@@ -85,7 +95,7 @@ export default function DownloadedAssets({ vrm, onModelSelect, currentModelUrl }
     if (meshList.length > 0) {
       setSelectedMesh(meshList[0].name)
     }
-  }, [vrm])
+  }, [vrm, originalTextures])
 
   const filteredAssets = assets.filter((a) => a.category === selectedCategory)
 
@@ -150,6 +160,40 @@ export default function DownloadedAssets({ vrm, onModelSelect, currentModelUrl }
     img.src = asset.path
   }
 
+  const handleResetTextures = () => {
+    if (!vrm) return
+
+    let meshesToReset: THREE.Mesh[] = []
+
+    if (groupedMode) {
+      // Reset all meshes in the selected group
+      if (!selectedGroup) return
+      const groupMeshes = meshGroups.get(selectedGroup)
+      if (!groupMeshes || groupMeshes.length === 0) return
+      meshesToReset = groupMeshes
+    } else {
+      // Reset single selected mesh
+      if (!selectedMesh) return
+      const meshInfo = allMeshes.find((m) => m.name === selectedMesh)
+      if (!meshInfo) return
+      meshesToReset = [meshInfo.mesh]
+    }
+
+    // Restore original textures
+    meshesToReset.forEach((mesh) => {
+      const materials = Array.isArray(mesh.material)
+        ? mesh.material
+        : [mesh.material]
+
+      materials.forEach((material) => {
+        if (material && 'map' in material && originalTextures.has(material)) {
+          (material as THREE.MeshStandardMaterial).map = originalTextures.get(material) || null
+          material.needsUpdate = true
+        }
+      })
+    })
+  }
+
   const isTextureCategory = selectedCategory !== 'Models'
 
   if (loading) {
@@ -206,6 +250,13 @@ export default function DownloadedAssets({ vrm, onModelSelect, currentModelUrl }
                   className="text-xs px-2 py-1 rounded bg-gray-700 hover:bg-gray-600 transition-colors"
                 >
                   {groupedMode ? 'Grouped' : 'Individual'} ⇄
+                </button>
+                <button
+                  onClick={handleResetTextures}
+                  className="text-xs px-2 py-1 rounded bg-red-700 hover:bg-red-600 transition-colors ml-auto"
+                  title="Reset to original textures"
+                >
+                  Reset
                 </button>
               </div>
 

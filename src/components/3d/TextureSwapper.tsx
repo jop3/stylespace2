@@ -38,6 +38,7 @@ export default function TextureSwapper({ vrm, onTextureApplied }: TextureSwapper
   const [groupedMode, setGroupedMode] = useState(true)
   const [showPrompts, setShowPrompts] = useState(false)
   const [activePrompt, setActivePrompt] = useState<keyof typeof TEXTURE_PROMPTS>('pattern')
+  const [originalTextures] = useState<Map<THREE.Material, THREE.Texture | null>>(new Map())
 
   // Scan VRM for meshes and group by base name
   useEffect(() => {
@@ -46,6 +47,7 @@ export default function TextureSwapper({ vrm, onTextureApplied }: TextureSwapper
       setSelectedGroup(null)
       setAllMeshes([])
       setSelectedMesh(null)
+      originalTextures.clear()
       return
     }
 
@@ -57,6 +59,14 @@ export default function TextureSwapper({ vrm, onTextureApplied }: TextureSwapper
         // Add to mesh list for individual selection
         const meshName = object.name || `Mesh ${meshList.length}`
         meshList.push({ name: meshName, mesh: object })
+
+        // Store original textures
+        const materials = Array.isArray(object.material) ? object.material : [object.material]
+        materials.forEach((material) => {
+          if (material && 'map' in material && !originalTextures.has(material)) {
+            originalTextures.set(material, (material as any).map || null)
+          }
+        })
 
         // Group by base name
         const baseName = (object.name || 'Unknown').replace(/_?\d+$/, '') || 'Other'
@@ -77,7 +87,7 @@ export default function TextureSwapper({ vrm, onTextureApplied }: TextureSwapper
     if (meshList.length > 0) {
       setSelectedMesh(meshList[0].name)
     }
-  }, [vrm])
+  }, [vrm, originalTextures])
 
   const handleFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0]
@@ -154,6 +164,42 @@ export default function TextureSwapper({ vrm, onTextureApplied }: TextureSwapper
     navigator.clipboard.writeText(TEXTURE_PROMPTS[activePrompt])
   }
 
+  const handleResetTextures = () => {
+    if (!vrm) return
+
+    let meshesToReset: THREE.Mesh[] = []
+
+    if (groupedMode) {
+      // Reset all meshes in the selected group
+      if (!selectedGroup) return
+      const groupMeshes = meshGroups.get(selectedGroup)
+      if (!groupMeshes || groupMeshes.length === 0) return
+      meshesToReset = groupMeshes
+    } else {
+      // Reset single selected mesh
+      if (!selectedMesh) return
+      const meshInfo = allMeshes.find((m) => m.name === selectedMesh)
+      if (!meshInfo) return
+      meshesToReset = [meshInfo.mesh]
+    }
+
+    // Restore original textures
+    meshesToReset.forEach((mesh) => {
+      const materials = Array.isArray(mesh.material)
+        ? mesh.material
+        : [mesh.material]
+
+      materials.forEach((material) => {
+        if (material && 'map' in material && originalTextures.has(material)) {
+          (material as THREE.MeshStandardMaterial).map = originalTextures.get(material) || null
+          material.needsUpdate = true
+        }
+      })
+    })
+
+    onTextureApplied?.()
+  }
+
   if (!vrm) {
     return (
       <div className="bg-gray-800 rounded-lg p-4">
@@ -177,6 +223,13 @@ export default function TextureSwapper({ vrm, onTextureApplied }: TextureSwapper
             className="text-xs px-2 py-1 rounded bg-gray-700 hover:bg-gray-600 transition-colors"
           >
             {groupedMode ? 'Grouped' : 'Individual'} ⇄
+          </button>
+          <button
+            onClick={handleResetTextures}
+            className="text-xs px-2 py-1 rounded bg-red-700 hover:bg-red-600 transition-colors ml-auto"
+            title="Reset to original textures"
+          >
+            Reset
           </button>
         </div>
 
