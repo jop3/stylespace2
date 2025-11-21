@@ -32,6 +32,46 @@ export const SAMPLE_VRMS: SampleVRM[] = [
     author: 'Pixiv',
     license: 'MIT',
   },
+  {
+    id: 'masc-vroid',
+    name: 'Masc VRoid',
+    url: '/vrm/masc-vroid.vrm',
+    thumbnail: '👨',
+    author: 'VRoid Project',
+    license: 'CC0',
+  },
+  {
+    id: 'avatar-orion',
+    name: 'Orion',
+    url: '/vrm/avatar-orion.vrm',
+    thumbnail: '🧑‍🚀',
+    author: 'madjin',
+    license: 'CC0',
+  },
+  {
+    id: 'meebit',
+    name: 'Meebit',
+    url: '/vrm/meebit.vrm',
+    thumbnail: '🤖',
+    author: 'madjin',
+    license: 'CC0',
+  },
+  {
+    id: 'skinnie-1',
+    name: 'Skinnie 1',
+    url: '/vrm/skinnie-1.vrm',
+    thumbnail: '🧍',
+    author: 'MJMoonbow',
+    license: 'CC0',
+  },
+  {
+    id: 'skinnie-2',
+    name: 'Skinnie 2',
+    url: '/vrm/skinnie-2.vrm',
+    thumbnail: '🧍‍♀️',
+    author: 'MJMoonbow',
+    license: 'CC0',
+  },
 ]
 
 interface VRMGalleryProps {
