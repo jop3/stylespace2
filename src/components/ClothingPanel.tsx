@@ -13,7 +13,7 @@ export default function ClothingPanel({
   onSelect,
   onRemove,
 }: ClothingPanelProps) {
-  const clothingTypes: ClothingType[] = ['tshirt', 'pants', 'shoes']
+  const clothingTypes: ClothingType[] = ['tshirt', 'pants', 'dress', 'shoes']
 
   const getTypeLabel = (type: ClothingType) => {
     switch (type) {
@@ -21,6 +21,8 @@ export default function ClothingPanel({
         return 'T-Shirts'
       case 'pants':
         return 'Pants'
+      case 'dress':
+        return 'Dresses'
       case 'shoes':
         return 'Shoes'
     }
@@ -63,13 +65,10 @@ export default function ClothingPanel({
                     }`}
                     title={item.name}
                   >
-                    <div
-                      className="w-full h-full bg-white"
-                      dangerouslySetInnerHTML={{ __html: item.svg }}
-                      style={{
-                        transform: 'scale(0.5)',
-                        transformOrigin: 'top left',
-                      }}
+                    <img
+                      src={item.imageUrl}
+                      alt={item.name}
+                      className="w-full h-full object-cover bg-gray-900"
                     />
                   </button>
                 ))}

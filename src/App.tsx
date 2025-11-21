@@ -4,7 +4,7 @@ import { useState } from 'react'
 import './index.css'
 import Avatar from './components/Avatar'
 import ClothingPanel from './components/ClothingPanel'
-import SVGImporter from './components/SVGImporter'
+import ImageImporter from './components/ImageImporter'
 import type { ClothingItem, ClothingType } from './types'
 
 function App() {
@@ -13,21 +13,36 @@ function App() {
     tshirt: null,
     pants: null,
     shoes: null,
+    dress: null,
   })
 
-  const handleSVGImport = (svg: string, type: ClothingType, name: string) => {
+  const handleImageImport = (imageUrl: string, type: ClothingType, name: string) => {
     const newItem: ClothingItem = {
       id: Date.now().toString(),
       name,
       type,
-      svg,
+      imageUrl,
     }
     setClothingItems(prev => [...prev, newItem])
-    setActiveClothing(prev => ({ ...prev, [type]: newItem }))
+
+    // If adding a dress, remove tshirt and pants; vice versa
+    if (type === 'dress') {
+      setActiveClothing(prev => ({ ...prev, dress: newItem, tshirt: null, pants: null }))
+    } else if (type === 'tshirt' || type === 'pants') {
+      setActiveClothing(prev => ({ ...prev, [type]: newItem, dress: null }))
+    } else {
+      setActiveClothing(prev => ({ ...prev, [type]: newItem }))
+    }
   }
 
   const handleSelectClothing = (item: ClothingItem) => {
-    setActiveClothing(prev => ({ ...prev, [item.type]: item }))
+    if (item.type === 'dress') {
+      setActiveClothing(prev => ({ ...prev, dress: item, tshirt: null, pants: null }))
+    } else if (item.type === 'tshirt' || item.type === 'pants') {
+      setActiveClothing(prev => ({ ...prev, [item.type]: item, dress: null }))
+    } else {
+      setActiveClothing(prev => ({ ...prev, [item.type]: item }))
+    }
   }
 
   const handleRemoveClothing = (type: ClothingType) => {
@@ -59,7 +74,7 @@ function App() {
         <h1 className="text-2xl font-bold text-center">StyleSpace</h1>
         <p className="text-gray-400 text-sm text-center">3D Avatar Dress-Up</p>
 
-        <SVGImporter onImport={handleSVGImport} />
+        <ImageImporter onImport={handleImageImport} />
 
         <ClothingPanel
           clothingItems={clothingItems}

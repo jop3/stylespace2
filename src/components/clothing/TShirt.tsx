@@ -1,13 +1,13 @@
-import { useSVGTexture } from '../../hooks/useSVGTexture'
+import { useImageTexture } from '../../hooks/useImageTexture'
 
 interface TShirtProps {
-  svg: string | null
+  imageUrl: string | null
 }
 
-export default function TShirt({ svg }: TShirtProps) {
-  const texture = useSVGTexture(svg)
+export default function TShirt({ imageUrl }: TShirtProps) {
+  const texture = useImageTexture(imageUrl)
 
-  if (!svg) return null
+  if (!imageUrl) return null
 
   return (
     <group position={[0, 1.35, 0]}>

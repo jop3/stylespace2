@@ -1,13 +1,13 @@
-import { useSVGTexture } from '../../hooks/useSVGTexture'
+import { useImageTexture } from '../../hooks/useImageTexture'
 
 interface ShoesProps {
-  svg: string | null
+  imageUrl: string | null
 }
 
-export default function Shoes({ svg }: ShoesProps) {
-  const texture = useSVGTexture(svg)
+export default function Shoes({ imageUrl }: ShoesProps) {
+  const texture = useImageTexture(imageUrl)
 
-  if (!svg) return null
+  if (!imageUrl) return null
 
   return (
     <group>

@@ -1,8 +1,8 @@
-export type ClothingType = 'tshirt' | 'pants' | 'shoes'
+export type ClothingType = 'tshirt' | 'pants' | 'shoes' | 'dress'
 
 export interface ClothingItem {
   id: string
   name: string
   type: ClothingType
-  svg: string
+  imageUrl: string // data URL or blob URL from uploaded image
 }

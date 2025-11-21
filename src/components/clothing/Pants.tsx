@@ -1,13 +1,13 @@
-import { useSVGTexture } from '../../hooks/useSVGTexture'
+import { useImageTexture } from '../../hooks/useImageTexture'
 
 interface PantsProps {
-  svg: string | null
+  imageUrl: string | null
 }
 
-export default function Pants({ svg }: PantsProps) {
-  const texture = useSVGTexture(svg)
+export default function Pants({ imageUrl }: PantsProps) {
+  const texture = useImageTexture(imageUrl)
 
-  if (!svg) return null
+  if (!imageUrl) return null
 
   return (
     <group position={[0, 0, 0]}>

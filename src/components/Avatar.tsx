@@ -3,6 +3,7 @@ import { Group } from 'three'
 import TShirt from './clothing/TShirt'
 import Pants from './clothing/Pants'
 import Shoes from './clothing/Shoes'
+import Dress from './clothing/Dress'
 import type { ClothingItem, ClothingType } from '../types'
 
 interface AvatarProps {
@@ -11,6 +12,9 @@ interface AvatarProps {
 
 export default function Avatar({ activeClothing }: AvatarProps) {
   const groupRef = useRef<Group>(null)
+
+  // Check if wearing a dress (hides separate top/bottom)
+  const hasDress = activeClothing.dress !== null
 
   return (
     <group ref={groupRef}>
@@ -63,7 +67,7 @@ export default function Avatar({ activeClothing }: AvatarProps) {
         <meshStandardMaterial color="#e8beac" />
       </mesh>
 
-      {/* Lower legs (visible below pants) */}
+      {/* Lower legs (visible below pants/dress) */}
       <mesh position={[-0.12, 0.2, 0]}>
         <cylinderGeometry args={[0.07, 0.06, 0.4, 16]} />
         <meshStandardMaterial color="#e8beac" />
@@ -73,10 +77,16 @@ export default function Avatar({ activeClothing }: AvatarProps) {
         <meshStandardMaterial color="#e8beac" />
       </mesh>
 
-      {/* Clothing items */}
-      <TShirt svg={activeClothing.tshirt?.svg || null} />
-      <Pants svg={activeClothing.pants?.svg || null} />
-      <Shoes svg={activeClothing.shoes?.svg || null} />
+      {/* Clothing items - dress replaces tshirt + pants */}
+      {hasDress ? (
+        <Dress imageUrl={activeClothing.dress?.imageUrl || null} />
+      ) : (
+        <>
+          <TShirt imageUrl={activeClothing.tshirt?.imageUrl || null} />
+          <Pants imageUrl={activeClothing.pants?.imageUrl || null} />
+        </>
+      )}
+      <Shoes imageUrl={activeClothing.shoes?.imageUrl || null} />
     </group>
   )
 }
