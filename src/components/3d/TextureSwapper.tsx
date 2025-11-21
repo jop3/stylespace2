@@ -132,8 +132,8 @@ export default function TextureSwapper({ vrm, onTextureApplied }: TextureSwapper
           onChange={(e) => setSelectedMesh(e.target.value)}
           className="w-full bg-gray-900 text-white p-2 rounded border border-gray-700"
         >
-          {meshes.map((mesh) => (
-            <option key={mesh.name} value={mesh.name}>
+          {meshes.map((mesh, index) => (
+            <option key={`${mesh.name}-${index}`} value={mesh.name}>
               {mesh.name}
             </option>
           ))}
