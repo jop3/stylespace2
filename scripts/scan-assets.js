@@ -24,9 +24,8 @@ const isWindows = process.platform === 'win32'
 // Extract a zip file cross-platform
 function extractZip(zipPath, destDir) {
   if (isWindows) {
-    // Use PowerShell's Expand-Archive on Windows
-    const psCommand = `Expand-Archive -Path "${zipPath}" -DestinationPath "${destDir}" -Force`
-    execSync(`powershell -NoProfile -Command "${psCommand}"`, { stdio: 'pipe' })
+    // Use tar (built into Windows 10 1803+) which supports zip extraction
+    execSync(`tar -xf "${zipPath}" -C "${destDir}"`, { stdio: 'pipe' })
   } else {
     // Use unzip on Unix-like systems
     execSync(`unzip -o -q "${zipPath}" -d "${destDir}"`, { stdio: 'pipe' })
