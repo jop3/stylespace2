@@ -19,37 +19,74 @@ const EXTENSIONS = {
   Textures: ['.png', '.jpg', '.jpeg', '.webp'],
 }
 
-function generateId(filename) {
-  return filename.toLowerCase().replace(/\s+/g, '-').replace(/\.[^.]+$/, '')
-}
+// Recursively extract all zips, including nested ones
+function extractAllZips(dir, depth = 0) {
+  if (depth > 5) return 0 // Prevent infinite recursion
+  if (!fs.existsSync(dir)) return 0
 
-function getDisplayName(filename) {
-  return filename.replace(/\.[^.]+$/, '').replace(/[-_]/g, ' ')
-}
+  let totalExtracted = 0
+  const items = fs.readdirSync(dir, { withFileTypes: true })
 
-// Extract all zip files in a directory
-function extractZips(categoryDir) {
-  const files = fs.readdirSync(categoryDir)
-  let extracted = 0
+  for (const item of items) {
+    const fullPath = path.join(dir, item.name)
 
-  for (const file of files) {
-    if (file.toLowerCase().endsWith('.zip')) {
-      const zipPath = path.join(categoryDir, file)
-      console.log(`  Extracting: ${file}`)
+    if (item.isDirectory()) {
+      // Recurse into subdirectories
+      totalExtracted += extractAllZips(fullPath, depth + 1)
+    } else if (item.name.toLowerCase().endsWith('.zip')) {
+      console.log(`  ${'  '.repeat(depth)}Extracting: ${item.name}`)
       try {
-        execSync(`unzip -o -q "${zipPath}" -d "${categoryDir}"`, { stdio: 'pipe' })
-        // Remove zip after extraction
-        fs.unlinkSync(zipPath)
-        extracted++
+        // Extract to same directory
+        execSync(`unzip -o -q "${fullPath}" -d "${dir}"`, { stdio: 'pipe' })
+        fs.unlinkSync(fullPath)
+        totalExtracted++
+        // Re-scan this directory for newly extracted zips
+        totalExtracted += extractAllZips(dir, depth)
       } catch (err) {
-        console.error(`  Failed to extract ${file}:`, err.message)
+        console.error(`  Failed to extract ${item.name}:`, err.message)
       }
     }
   }
-  return extracted
+  return totalExtracted
 }
 
-// Recursively find all asset files (handles nested folders from zips)
+// Smart name extraction from path
+function getSmartName(filePath, category) {
+  const parts = filePath.split('/')
+  const filename = parts[parts.length - 1]
+  const filenameNoExt = filename.replace(/\.[^.]+$/, '')
+
+  // If file is in a subfolder, use folder name + filename for context
+  if (parts.length > 1) {
+    const folderName = parts[parts.length - 2]
+    // Skip generic folder names
+    const genericNames = ['textures', 'texture', 'images', 'image', 'assets', 'export', 'output', category.toLowerCase()]
+    if (!genericNames.includes(folderName.toLowerCase())) {
+      // Combine folder and file name if they're different
+      if (!filenameNoExt.toLowerCase().includes(folderName.toLowerCase())) {
+        return cleanName(`${folderName} ${filenameNoExt}`)
+      }
+    }
+  }
+
+  return cleanName(filenameNoExt)
+}
+
+// Clean up name for display
+function cleanName(name) {
+  return name
+    .replace(/[-_]+/g, ' ')
+    .replace(/\s+/g, ' ')
+    .replace(/^\s+|\s+$/g, '')
+    .replace(/\b\w/g, c => c.toUpperCase()) // Title case
+}
+
+// Generate unique ID
+function generateId(str) {
+  return str.toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/^-|-$/g, '')
+}
+
+// Recursively find all asset files
 function findAssetFiles(dir, validExtensions, basePath = '') {
   const results = []
   if (!fs.existsSync(dir)) return results
@@ -72,8 +109,57 @@ function findAssetFiles(dir, validExtensions, basePath = '') {
   return results
 }
 
+// Flatten deeply nested single-folder structures
+// e.g., Models/SomeZip/folder1/folder2/model.vrm -> Models/model.vrm
+function flattenSingleFolders(categoryDir) {
+  let flattened = 0
+
+  function processDir(dir) {
+    if (!fs.existsSync(dir)) return
+    const items = fs.readdirSync(dir, { withFileTypes: true })
+
+    for (const item of items) {
+      if (!item.isDirectory()) continue
+      const subdir = path.join(dir, item.name)
+      const subItems = fs.readdirSync(subdir, { withFileTypes: true })
+
+      // If folder only contains one subfolder (no files), flatten it
+      const subfolders = subItems.filter(i => i.isDirectory())
+      const files = subItems.filter(i => !i.isDirectory())
+
+      if (subfolders.length === 1 && files.length === 0) {
+        const innerFolder = path.join(subdir, subfolders[0].name)
+        const innerItems = fs.readdirSync(innerFolder)
+
+        // Move all contents up
+        for (const inner of innerItems) {
+          const src = path.join(innerFolder, inner)
+          const dest = path.join(subdir, inner)
+          if (!fs.existsSync(dest)) {
+            fs.renameSync(src, dest)
+          }
+        }
+        // Remove empty folder
+        try {
+          fs.rmdirSync(innerFolder)
+          flattened++
+          // Process again in case of multiple levels
+          processDir(dir)
+        } catch {}
+      } else {
+        // Recurse into non-single folders
+        processDir(subdir)
+      }
+    }
+  }
+
+  processDir(categoryDir)
+  return flattened
+}
+
 function scanDirectory() {
   const assets = []
+  const seenIds = new Set()
 
   for (const category of CATEGORIES) {
     const categoryDir = path.join(downloadsDir, category)
@@ -83,35 +169,63 @@ function scanDirectory() {
       continue
     }
 
-    // Extract any zip files first
-    const extracted = extractZips(categoryDir)
+    console.log(`\nProcessing ${category}...`)
+
+    // Extract all zips (including nested)
+    const extracted = extractAllZips(categoryDir)
     if (extracted > 0) {
-      console.log(`  Extracted ${extracted} zip file(s) in ${category}`)
+      console.log(`  Extracted ${extracted} zip file(s)`)
     }
 
+    // Flatten unnecessary folder nesting
+    const flattened = flattenSingleFolders(categoryDir)
+    if (flattened > 0) {
+      console.log(`  Flattened ${flattened} nested folder(s)`)
+    }
+
+    // Find all assets
     const validExtensions = EXTENSIONS[category]
     const files = findAssetFiles(categoryDir, validExtensions)
 
     for (const { file, relativePath } of files) {
+      const name = getSmartName(relativePath, category)
+      let id = generateId(name)
+
+      // Ensure unique ID
+      let counter = 1
+      let uniqueId = id
+      while (seenIds.has(uniqueId)) {
+        uniqueId = `${id}-${counter++}`
+      }
+      seenIds.add(uniqueId)
+
       assets.push({
-        id: generateId(relativePath.replace(/\//g, '-')),
-        name: getDisplayName(file),
+        id: uniqueId,
+        name,
         path: `/downloads/${category}/${relativePath}`,
         category,
       })
     }
+
+    console.log(`  Found ${files.length} ${category.toLowerCase()}`)
   }
 
   return assets
 }
 
+// Ensure downloads directory exists
+if (!fs.existsSync(downloadsDir)) {
+  fs.mkdirSync(downloadsDir, { recursive: true })
+}
+
 // Run scan
 console.log('Scanning downloads folder...')
+console.log(`Location: ${downloadsDir}`)
+
 const assets = scanDirectory()
+
 fs.writeFileSync(manifestPath, JSON.stringify(assets, null, 2))
-console.log(`Found ${assets.length} assets:`)
-CATEGORIES.forEach(cat => {
-  const count = assets.filter(a => a.category === cat).length
-  console.log(`  ${cat}: ${count}`)
-})
+
+console.log('\n---')
+console.log(`Total: ${assets.length} assets`)
 console.log(`Manifest saved to: ${manifestPath}`)
