@@ -126,7 +126,22 @@ export default function DownloadedAssets({ vrm, onModelSelect, currentModelUrl }
         materials.forEach((material) => {
           // Handle various material types (MeshStandardMaterial, MeshBasicMaterial, MToonMaterial, etc.)
           if (material && 'map' in material) {
+            // Store original properties to preserve transparency, etc.
+            const wasTransparent = material.transparent
+            const originalOpacity = (material as any).opacity
+            const originalAlphaMap = (material as any).alphaMap
+
             (material as THREE.MeshStandardMaterial).map = texture
+
+            // Restore transparency properties
+            material.transparent = wasTransparent
+            if (originalOpacity !== undefined) {
+              (material as any).opacity = originalOpacity
+            }
+            if (originalAlphaMap !== undefined) {
+              (material as any).alphaMap = originalAlphaMap
+            }
+
             material.needsUpdate = true
           }
         })
