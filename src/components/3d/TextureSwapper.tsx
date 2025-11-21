@@ -7,12 +7,6 @@ interface TextureSwapperProps {
   onTextureApplied?: () => void
 }
 
-interface MeshInfo {
-  name: string
-  mesh: THREE.Mesh
-  materialIndex: number
-}
-
 const TEXTURE_PROMPTS = {
   pattern: `Generate a seamless tileable fabric texture pattern.
 - Size: 512x512 pixels
@@ -37,43 +31,43 @@ const TEXTURE_PROMPTS = {
 
 export default function TextureSwapper({ vrm, onTextureApplied }: TextureSwapperProps) {
   const fileInputRef = useRef<HTMLInputElement>(null)
-  const [meshes, setMeshes] = useState<MeshInfo[]>([])
-  const [selectedMesh, setSelectedMesh] = useState<string | null>(null)
+  const [meshGroups, setMeshGroups] = useState<Map<string, THREE.Mesh[]>>(new Map())
+  const [selectedGroup, setSelectedGroup] = useState<string | null>(null)
   const [showPrompts, setShowPrompts] = useState(false)
   const [activePrompt, setActivePrompt] = useState<keyof typeof TEXTURE_PROMPTS>('pattern')
 
-  // Scan VRM for meshes when it changes
+  // Scan VRM for meshes and group by base name
   useEffect(() => {
     if (!vrm) {
-      setMeshes([])
+      setMeshGroups(new Map())
+      setSelectedGroup(null)
       return
     }
 
-    const foundMeshes: MeshInfo[] = []
+    const groups = new Map<string, THREE.Mesh[]>()
     vrm.scene.traverse((object) => {
       if (object instanceof THREE.Mesh && object.material) {
-        const materials = Array.isArray(object.material) ? object.material : [object.material]
-        materials.forEach((_, index) => {
-          foundMeshes.push({
-            name: object.name || `Mesh ${foundMeshes.length}`,
-            mesh: object,
-            materialIndex: index,
-          })
-        })
+        // Extract base name (e.g., "Face_1" -> "Face", "Body" -> "Body")
+        const baseName = (object.name || 'Unknown').replace(/_?\d+$/, '') || 'Other'
+        if (!groups.has(baseName)) {
+          groups.set(baseName, [])
+        }
+        groups.get(baseName)!.push(object)
       }
     })
-    setMeshes(foundMeshes)
-    if (foundMeshes.length > 0) {
-      setSelectedMesh(foundMeshes[0].name)
+    setMeshGroups(groups)
+    const firstGroup = groups.keys().next().value
+    if (firstGroup) {
+      setSelectedGroup(firstGroup)
     }
   }, [vrm])
 
   const handleFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0]
-    if (!file || !selectedMesh) return
+    if (!file || !selectedGroup) return
 
-    const meshInfo = meshes.find((m) => m.name === selectedMesh)
-    if (!meshInfo) return
+    const groupMeshes = meshGroups.get(selectedGroup)
+    if (!groupMeshes || groupMeshes.length === 0) return
 
     const reader = new FileReader()
     reader.onload = (event) => {
@@ -85,16 +79,20 @@ export default function TextureSwapper({ vrm, onTextureApplied }: TextureSwapper
         texture.wrapT = THREE.RepeatWrapping
         texture.colorSpace = THREE.SRGBColorSpace
 
-        const materials = Array.isArray(meshInfo.mesh.material)
-          ? meshInfo.mesh.material
-          : [meshInfo.mesh.material]
+        // Apply texture to all meshes in the group
+        groupMeshes.forEach((mesh) => {
+          const materials = Array.isArray(mesh.material)
+            ? mesh.material
+            : [mesh.material]
 
-        const material = materials[meshInfo.materialIndex]
-        // Handle various material types (MeshStandardMaterial, MeshBasicMaterial, MToonMaterial, etc.)
-        if (material && 'map' in material) {
-          (material as THREE.MeshStandardMaterial).map = texture
-          material.needsUpdate = true
-        }
+          materials.forEach((material) => {
+            // Handle various material types (MeshStandardMaterial, MeshBasicMaterial, MToonMaterial, etc.)
+            if (material && 'map' in material) {
+              (material as THREE.MeshStandardMaterial).map = texture
+              material.needsUpdate = true
+            }
+          })
+        })
 
         onTextureApplied?.()
       }
@@ -124,17 +122,17 @@ export default function TextureSwapper({ vrm, onTextureApplied }: TextureSwapper
     <div className="bg-gray-800 rounded-lg p-4 space-y-3">
       <h2 className="text-lg font-semibold">Change Textures</h2>
 
-      {/* Mesh selector */}
+      {/* Mesh group selector */}
       <div>
         <label className="block text-sm text-gray-400 mb-1">Select Part</label>
         <select
-          value={selectedMesh || ''}
-          onChange={(e) => setSelectedMesh(e.target.value)}
+          value={selectedGroup || ''}
+          onChange={(e) => setSelectedGroup(e.target.value)}
           className="w-full bg-gray-900 text-white p-2 rounded border border-gray-700"
         >
-          {meshes.map((mesh, index) => (
-            <option key={`${mesh.name}-${index}`} value={mesh.name}>
-              {mesh.name}
+          {Array.from(meshGroups.entries()).map(([groupName, groupMeshes]) => (
+            <option key={groupName} value={groupName}>
+              {groupName} ({groupMeshes.length})
             </option>
           ))}
         </select>

@@ -33,8 +33,8 @@ export default function DownloadedAssets({ vrm, onModelSelect, currentModelUrl }
   const [assets, setAssets] = useState<DownloadedAsset[]>([])
   const [selectedCategory, setSelectedCategory] = useState<AssetCategory>('Models')
   const [loading, setLoading] = useState(true)
-  const [selectedMesh, setSelectedMesh] = useState<string | null>(null)
-  const [meshes, setMeshes] = useState<{ name: string; mesh: THREE.Mesh }[]>([])
+  const [selectedGroup, setSelectedGroup] = useState<string | null>(null)
+  const [meshGroups, setMeshGroups] = useState<Map<string, THREE.Mesh[]>>(new Map())
 
   // Load asset manifest on mount
   useEffect(() => {
@@ -44,35 +44,39 @@ export default function DownloadedAssets({ vrm, onModelSelect, currentModelUrl }
     })
   }, [])
 
-  // Scan VRM for meshes when it changes (for texture application)
+  // Scan VRM for meshes and group by base name
   useEffect(() => {
     if (!vrm) {
-      setMeshes([])
+      setMeshGroups(new Map())
+      setSelectedGroup(null)
       return
     }
 
-    const foundMeshes: { name: string; mesh: THREE.Mesh }[] = []
+    const groups = new Map<string, THREE.Mesh[]>()
     vrm.scene.traverse((object) => {
       if (object instanceof THREE.Mesh && object.material) {
-        foundMeshes.push({
-          name: object.name || `Mesh ${foundMeshes.length}`,
-          mesh: object,
-        })
+        // Extract base name (e.g., "Face_1" -> "Face", "Body" -> "Body")
+        const baseName = (object.name || 'Unknown').replace(/_?\d+$/, '') || 'Other'
+        if (!groups.has(baseName)) {
+          groups.set(baseName, [])
+        }
+        groups.get(baseName)!.push(object)
       }
     })
-    setMeshes(foundMeshes)
-    if (foundMeshes.length > 0) {
-      setSelectedMesh(foundMeshes[0].name)
+    setMeshGroups(groups)
+    const firstGroup = groups.keys().next().value
+    if (firstGroup) {
+      setSelectedGroup(firstGroup)
     }
   }, [vrm])
 
   const filteredAssets = assets.filter((a) => a.category === selectedCategory)
 
   const handleTextureApply = (asset: DownloadedAsset) => {
-    if (!vrm || !selectedMesh) return
+    if (!vrm || !selectedGroup) return
 
-    const meshInfo = meshes.find((m) => m.name === selectedMesh)
-    if (!meshInfo) return
+    const groupMeshes = meshGroups.get(selectedGroup)
+    if (!groupMeshes || groupMeshes.length === 0) return
 
     const img = new Image()
     img.crossOrigin = 'anonymous'
@@ -83,16 +87,19 @@ export default function DownloadedAssets({ vrm, onModelSelect, currentModelUrl }
       texture.wrapT = THREE.RepeatWrapping
       texture.colorSpace = THREE.SRGBColorSpace
 
-      const materials = Array.isArray(meshInfo.mesh.material)
-        ? meshInfo.mesh.material
-        : [meshInfo.mesh.material]
+      // Apply texture to all meshes in the group
+      groupMeshes.forEach((mesh) => {
+        const materials = Array.isArray(mesh.material)
+          ? mesh.material
+          : [mesh.material]
 
-      materials.forEach((material) => {
-        // Handle various material types (MeshStandardMaterial, MeshBasicMaterial, MToonMaterial, etc.)
-        if (material && 'map' in material) {
-          (material as THREE.MeshStandardMaterial).map = texture
-          material.needsUpdate = true
-        }
+        materials.forEach((material) => {
+          // Handle various material types (MeshStandardMaterial, MeshBasicMaterial, MToonMaterial, etc.)
+          if (material && 'map' in material) {
+            (material as THREE.MeshStandardMaterial).map = texture
+            material.needsUpdate = true
+          }
+        })
       })
     }
     img.src = asset.path
@@ -143,18 +150,18 @@ export default function DownloadedAssets({ vrm, onModelSelect, currentModelUrl }
             })}
           </div>
 
-          {/* Mesh selector for textures */}
-          {isTextureCategory && vrm && meshes.length > 0 && (
+          {/* Mesh group selector for textures */}
+          {isTextureCategory && vrm && meshGroups.size > 0 && (
             <div>
-              <label className="block text-xs text-gray-400 mb-1">Apply to mesh:</label>
+              <label className="block text-xs text-gray-400 mb-1">Apply to:</label>
               <select
-                value={selectedMesh || ''}
-                onChange={(e) => setSelectedMesh(e.target.value)}
+                value={selectedGroup || ''}
+                onChange={(e) => setSelectedGroup(e.target.value)}
                 className="w-full bg-gray-900 text-white p-2 rounded border border-gray-700 text-sm"
               >
-                {meshes.map((mesh, index) => (
-                  <option key={`${mesh.name}-${index}`} value={mesh.name}>
-                    {mesh.name}
+                {Array.from(meshGroups.entries()).map(([groupName, groupMeshes]) => (
+                  <option key={groupName} value={groupName}>
+                    {groupName} ({groupMeshes.length} mesh{groupMeshes.length > 1 ? 'es' : ''})
                   </option>
                 ))}
               </select>
