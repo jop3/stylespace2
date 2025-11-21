@@ -8,6 +8,7 @@ import SceneControls, { type StageStyle } from './components/SceneControls'
 import VRMUploader from './components/3d/VRMUploader'
 import VRMGallery from './components/3d/VRMGallery'
 import TextureSwapper from './components/3d/TextureSwapper'
+import DownloadedAssets from './components/3d/DownloadedAssets'
 import { type GarmentType } from './data/garmentSilhouettes'
 import type { VRM } from '@pixiv/three-vrm'
 
@@ -194,6 +195,11 @@ function App() {
               <h2 className="text-lg font-semibold mb-3">3D Avatar</h2>
             </div>
 
+            <DownloadedAssets
+              vrm={currentVRM}
+              onModelSelect={handleVRMSelect}
+              currentModelUrl={vrmUrl}
+            />
             <VRMGallery onSelect={handleVRMSelect} currentUrl={vrmUrl} />
             <VRMUploader onUpload={handleVRMUpload} currentFile={vrmFileName} />
             <TextureSwapper vrm={currentVRM} />
