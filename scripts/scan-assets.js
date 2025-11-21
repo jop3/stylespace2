@@ -3,7 +3,7 @@
 import fs from 'fs'
 import path from 'path'
 import { fileURLToPath } from 'url'
-import { execSync } from 'child_process'
+import AdmZip from 'adm-zip'
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url))
 const downloadsDir = path.join(__dirname, '../public/downloads')
@@ -19,17 +19,10 @@ const EXTENSIONS = {
   Textures: ['.png', '.jpg', '.jpeg', '.webp'],
 }
 
-const isWindows = process.platform === 'win32'
-
-// Extract a zip file cross-platform
+// Extract a zip file using adm-zip (pure JS, cross-platform)
 function extractZip(zipPath, destDir) {
-  if (isWindows) {
-    // Use tar (built into Windows 10 1803+) which supports zip extraction
-    execSync(`tar -xf "${zipPath}" -C "${destDir}"`, { stdio: 'pipe' })
-  } else {
-    // Use unzip on Unix-like systems
-    execSync(`unzip -o -q "${zipPath}" -d "${destDir}"`, { stdio: 'pipe' })
-  }
+  const zip = new AdmZip(zipPath)
+  zip.extractAllTo(destDir, true) // true = overwrite
 }
 
 // Recursively extract all zips, including nested ones

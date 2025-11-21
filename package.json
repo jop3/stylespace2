@@ -20,6 +20,7 @@
     "three": "^0.181.2"
   },
   "devDependencies": {
+    "adm-zip": "^0.5.16",
     "@eslint/js": "^9.39.1",
     "@types/node": "^24.10.1",
     "@types/react": "^19.2.5",
