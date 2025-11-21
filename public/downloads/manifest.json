@@ -1,1 +1,92 @@
-[]
+[
+  {
+    "id": "matcap-blue",
+    "name": "Matcap Blue",
+    "path": "/downloads/Textures/matcap-blue.png",
+    "category": "Textures"
+  },
+  {
+    "id": "matcap-brass",
+    "name": "Matcap Brass",
+    "path": "/downloads/Textures/matcap-brass.png",
+    "category": "Textures"
+  },
+  {
+    "id": "matcap-charcoal",
+    "name": "Matcap Charcoal",
+    "path": "/downloads/Textures/matcap-charcoal.png",
+    "category": "Textures"
+  },
+  {
+    "id": "matcap-cyan",
+    "name": "Matcap Cyan",
+    "path": "/downloads/Textures/matcap-cyan.png",
+    "category": "Textures"
+  },
+  {
+    "id": "matcap-darkgreen",
+    "name": "Matcap Darkgreen",
+    "path": "/downloads/Textures/matcap-darkgreen.png",
+    "category": "Textures"
+  },
+  {
+    "id": "matcap-deepblue",
+    "name": "Matcap Deepblue",
+    "path": "/downloads/Textures/matcap-deepblue.png",
+    "category": "Textures"
+  },
+  {
+    "id": "matcap-emerald",
+    "name": "Matcap Emerald",
+    "path": "/downloads/Textures/matcap-emerald.png",
+    "category": "Textures"
+  },
+  {
+    "id": "matcap-gold",
+    "name": "Matcap Gold",
+    "path": "/downloads/Textures/matcap-gold.png",
+    "category": "Textures"
+  },
+  {
+    "id": "matcap-green",
+    "name": "Matcap Green",
+    "path": "/downloads/Textures/matcap-green.png",
+    "category": "Textures"
+  },
+  {
+    "id": "matcap-jade",
+    "name": "Matcap Jade",
+    "path": "/downloads/Textures/matcap-jade.png",
+    "category": "Textures"
+  },
+  {
+    "id": "matcap-orange",
+    "name": "Matcap Orange",
+    "path": "/downloads/Textures/matcap-orange.png",
+    "category": "Textures"
+  },
+  {
+    "id": "matcap-pink",
+    "name": "Matcap Pink",
+    "path": "/downloads/Textures/matcap-pink.png",
+    "category": "Textures"
+  },
+  {
+    "id": "matcap-purple",
+    "name": "Matcap Purple",
+    "path": "/downloads/Textures/matcap-purple.png",
+    "category": "Textures"
+  },
+  {
+    "id": "matcap-silver",
+    "name": "Matcap Silver",
+    "path": "/downloads/Textures/matcap-silver.png",
+    "category": "Textures"
+  },
+  {
+    "id": "matcap-teal",
+    "name": "Matcap Teal",
+    "path": "/downloads/Textures/matcap-teal.png",
+    "category": "Textures"
+  }
+]
