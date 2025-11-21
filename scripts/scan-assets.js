@@ -19,6 +19,20 @@ const EXTENSIONS = {
   Textures: ['.png', '.jpg', '.jpeg', '.webp'],
 }
 
+const isWindows = process.platform === 'win32'
+
+// Extract a zip file cross-platform
+function extractZip(zipPath, destDir) {
+  if (isWindows) {
+    // Use PowerShell's Expand-Archive on Windows
+    const psCommand = `Expand-Archive -Path "${zipPath}" -DestinationPath "${destDir}" -Force`
+    execSync(`powershell -NoProfile -Command "${psCommand}"`, { stdio: 'pipe' })
+  } else {
+    // Use unzip on Unix-like systems
+    execSync(`unzip -o -q "${zipPath}" -d "${destDir}"`, { stdio: 'pipe' })
+  }
+}
+
 // Recursively extract all zips, including nested ones
 function extractAllZips(dir, depth = 0) {
   if (depth > 5) return 0 // Prevent infinite recursion
@@ -37,7 +51,7 @@ function extractAllZips(dir, depth = 0) {
       console.log(`  ${'  '.repeat(depth)}Extracting: ${item.name}`)
       try {
         // Extract to same directory
-        execSync(`unzip -o -q "${fullPath}" -d "${dir}"`, { stdio: 'pipe' })
+        extractZip(fullPath, dir)
         fs.unlinkSync(fullPath)
         totalExtracted++
         // Re-scan this directory for newly extracted zips
