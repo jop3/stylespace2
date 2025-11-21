@@ -1,4 +1,4 @@
-import { useRef, useState } from 'react'
+import { useRef, useState, useEffect } from 'react'
 import type { VRM } from '@pixiv/three-vrm'
 import * as THREE from 'three'
 
@@ -43,7 +43,7 @@ export default function TextureSwapper({ vrm, onTextureApplied }: TextureSwapper
   const [activePrompt, setActivePrompt] = useState<keyof typeof TEXTURE_PROMPTS>('pattern')
 
   // Scan VRM for meshes when it changes
-  useState(() => {
+  useEffect(() => {
     if (!vrm) {
       setMeshes([])
       return
@@ -66,7 +66,7 @@ export default function TextureSwapper({ vrm, onTextureApplied }: TextureSwapper
     if (foundMeshes.length > 0) {
       setSelectedMesh(foundMeshes[0].name)
     }
-  })
+  }, [vrm])
 
   const handleFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0]

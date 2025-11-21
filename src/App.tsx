@@ -1,9 +1,10 @@
 import { useState, useCallback } from 'react'
 import './index.css'
-import Avatar2D from './components/Avatar2D'
+import Avatar2D, { type BodyType } from './components/Avatar2D'
 import Avatar3D from './components/3d/Avatar3D'
 import PatternImporter, { type PatternItem } from './components/PatternImporter'
 import PatternWardrobe from './components/PatternWardrobe'
+import SceneControls, { type StageStyle } from './components/SceneControls'
 import VRMUploader from './components/3d/VRMUploader'
 import VRMGallery from './components/3d/VRMGallery'
 import TextureSwapper from './components/3d/TextureSwapper'
@@ -25,6 +26,11 @@ function App() {
     jacket: null,
     shoes: null,
   })
+
+  // Scene customization state
+  const [bodyType, setBodyType] = useState<BodyType>('feminine')
+  const [backgroundColor, setBackgroundColor] = useState('#1f2937')
+  const [stageStyle, setStageStyle] = useState<StageStyle>('none')
 
   // 3D VRM State
   const [vrmUrl, setVrmUrl] = useState<string | null>(null)
@@ -114,9 +120,18 @@ function App() {
       {/* Main Viewport */}
       <div className="flex-1 relative">
         {viewMode === '2d' ? (
-          <Avatar2D activeGarments={activeGarments} />
+          <Avatar2D
+            activeGarments={activeGarments}
+            bodyType={bodyType}
+            backgroundColor={backgroundColor}
+            stageStyle={stageStyle}
+          />
         ) : (
-          <Avatar3D vrmUrl={vrmUrl} onVRMLoaded={handleVRMLoaded} />
+          <Avatar3D
+            vrmUrl={vrmUrl}
+            onVRMLoaded={handleVRMLoaded}
+            backgroundColor={backgroundColor}
+          />
         )}
 
         {/* Mode Switcher */}
@@ -150,6 +165,17 @@ function App() {
         <p className="text-gray-400 text-sm text-center">
           {viewMode === '2d' ? '2D Paper Doll' : '3D VRM Avatar'}
         </p>
+
+        {/* Scene Controls - show body type/stage only in 2D mode */}
+        <SceneControls
+          bodyType={bodyType}
+          onBodyTypeChange={setBodyType}
+          backgroundColor={backgroundColor}
+          onBackgroundColorChange={setBackgroundColor}
+          stageStyle={stageStyle}
+          onStageStyleChange={setStageStyle}
+          show2DControls={viewMode === '2d'}
+        />
 
         {/* Unified Pattern Creator - works for both modes */}
         <PatternImporter onImport={handlePatternImport} />
