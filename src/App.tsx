@@ -2,30 +2,28 @@ import { useState, useCallback } from 'react'
 import './index.css'
 import Avatar2D from './components/Avatar2D'
 import Avatar3D from './components/3d/Avatar3D'
-import ClothingPanel from './components/ClothingPanel'
-import ImageImporter from './components/ImageImporter'
+import PatternImporter, { type PatternItem } from './components/PatternImporter'
+import PatternWardrobe from './components/PatternWardrobe'
 import VRMUploader from './components/3d/VRMUploader'
 import VRMGallery from './components/3d/VRMGallery'
 import TextureSwapper from './components/3d/TextureSwapper'
-import type { ClothingItem, ClothingType } from './types'
+import { type GarmentType } from './data/garmentSilhouettes'
 import type { VRM } from '@pixiv/three-vrm'
 
 type ViewMode = '2d' | '3d'
 
 function App() {
-  const [viewMode, setViewMode] = useState<ViewMode>('3d') // Default to 3D now
+  const [viewMode, setViewMode] = useState<ViewMode>('2d')
 
-  // 2D State
-  const [clothingItems, setClothingItems] = useState<ClothingItem[]>([])
-  const [activeClothing, setActiveClothing] = useState<Record<ClothingType, ClothingItem | null>>({
-    body: null,
-    underwear: null,
-    pants: null,
-    tshirt: null,
+  // Unified pattern state (works for both 2D and 3D)
+  const [patternItems, setPatternItems] = useState<PatternItem[]>([])
+  const [activeGarments, setActiveGarments] = useState<Record<GarmentType, PatternItem | null>>({
     dress: null,
+    tshirt: null,
+    pants: null,
+    skirt: null,
     jacket: null,
     shoes: null,
-    accessories: null,
   })
 
   // 3D VRM State
@@ -33,45 +31,69 @@ function App() {
   const [vrmFileName, setVrmFileName] = useState<string | null>(null)
   const [currentVRM, setCurrentVRM] = useState<VRM | null>(null)
 
-  const handleImageImport = (imageUrl: string, type: ClothingType, name: string) => {
-    const newItem: ClothingItem = {
-      id: Date.now().toString(),
-      name,
-      type,
-      imageUrl,
+  // Pattern handlers
+  const handlePatternImport = (item: PatternItem) => {
+    setPatternItems((prev) => [...prev, item])
+
+    // Auto-apply to avatar
+    const type = item.garmentType
+
+    // Dress replaces shirt+pants+skirt
+    if (type === 'dress') {
+      setActiveGarments((prev) => ({
+        ...prev,
+        dress: item,
+        tshirt: null,
+        pants: null,
+        skirt: null,
+      }))
     }
-    setClothingItems(prev => [...prev, newItem])
+    // Shirt/pants/skirt remove dress
+    else if (type === 'tshirt' || type === 'pants' || type === 'skirt') {
+      setActiveGarments((prev) => ({
+        ...prev,
+        [type]: item,
+        dress: null,
+      }))
+    } else {
+      setActiveGarments((prev) => ({ ...prev, [type]: item }))
+    }
+  }
+
+  const handleSelectGarment = (item: PatternItem) => {
+    const type = item.garmentType
 
     if (type === 'dress') {
-      setActiveClothing(prev => ({ ...prev, dress: newItem, tshirt: null, pants: null }))
-    } else if (type === 'tshirt' || type === 'pants') {
-      setActiveClothing(prev => ({ ...prev, [type]: newItem, dress: null }))
+      setActiveGarments((prev) => ({
+        ...prev,
+        dress: item,
+        tshirt: null,
+        pants: null,
+        skirt: null,
+      }))
+    } else if (type === 'tshirt' || type === 'pants' || type === 'skirt') {
+      setActiveGarments((prev) => ({
+        ...prev,
+        [type]: item,
+        dress: null,
+      }))
     } else {
-      setActiveClothing(prev => ({ ...prev, [type]: newItem }))
+      setActiveGarments((prev) => ({ ...prev, [type]: item }))
     }
   }
 
-  const handleSelectClothing = (item: ClothingItem) => {
-    if (item.type === 'dress') {
-      setActiveClothing(prev => ({ ...prev, dress: item, tshirt: null, pants: null }))
-    } else if (item.type === 'tshirt' || item.type === 'pants') {
-      setActiveClothing(prev => ({ ...prev, [item.type]: item, dress: null }))
-    } else {
-      setActiveClothing(prev => ({ ...prev, [item.type]: item }))
-    }
+  const handleRemoveGarment = (type: GarmentType) => {
+    setActiveGarments((prev) => ({ ...prev, [type]: null }))
   }
 
-  const handleRemoveClothing = (type: ClothingType) => {
-    setActiveClothing(prev => ({ ...prev, [type]: null }))
-  }
-
+  // VRM handlers
   const handleVRMUpload = (url: string, fileName: string) => {
     if (vrmUrl && vrmUrl.startsWith('blob:')) {
       URL.revokeObjectURL(vrmUrl)
     }
     setVrmUrl(url)
     setVrmFileName(fileName)
-    setCurrentVRM(null) // Reset until loaded
+    setCurrentVRM(null)
   }
 
   const handleVRMSelect = (url: string, name: string) => {
@@ -92,15 +114,12 @@ function App() {
       {/* Main Viewport */}
       <div className="flex-1 relative">
         {viewMode === '2d' ? (
-          <Avatar2D activeClothing={activeClothing} />
+          <Avatar2D activeGarments={activeGarments} />
         ) : (
-          <Avatar3D
-            vrmUrl={vrmUrl}
-            onVRMLoaded={handleVRMLoaded}
-          />
+          <Avatar3D vrmUrl={vrmUrl} onVRMLoaded={handleVRMLoaded} />
         )}
 
-        {/* Mode Switcher (floating) */}
+        {/* Mode Switcher */}
         <div className="absolute top-4 left-4 flex bg-gray-800 rounded-lg overflow-hidden shadow-lg">
           <button
             onClick={() => setViewMode('2d')}
@@ -129,34 +148,32 @@ function App() {
       <div className="w-96 bg-gray-900 text-white p-4 flex flex-col gap-4 overflow-y-auto">
         <h1 className="text-2xl font-bold text-center">StyleSpace</h1>
         <p className="text-gray-400 text-sm text-center">
-          {viewMode === '2d' ? '2D Paper Doll Mode' : '3D VRM Avatar Mode'}
+          {viewMode === '2d' ? '2D Paper Doll' : '3D VRM Avatar'}
         </p>
 
-        {viewMode === '2d' ? (
+        {/* Unified Pattern Creator - works for both modes */}
+        <PatternImporter onImport={handlePatternImport} />
+
+        {/* Wardrobe - shared between modes */}
+        <PatternWardrobe
+          items={patternItems}
+          activeGarments={activeGarments}
+          onSelect={handleSelectGarment}
+          onRemove={handleRemoveGarment}
+        />
+
+        {viewMode === '3d' && (
           <>
-            <ImageImporter onImport={handleImageImport} />
-            <ClothingPanel
-              clothingItems={clothingItems}
-              activeClothing={activeClothing}
-              onSelect={handleSelectClothing}
-              onRemove={handleRemoveClothing}
-            />
-          </>
-        ) : (
-          <>
+            <div className="border-t border-gray-700 pt-4">
+              <h2 className="text-lg font-semibold mb-3">3D Avatar</h2>
+            </div>
+
             <VRMGallery onSelect={handleVRMSelect} currentUrl={vrmUrl} />
-
             <VRMUploader onUpload={handleVRMUpload} currentFile={vrmFileName} />
-
             <TextureSwapper vrm={currentVRM} />
 
-            <div className="bg-gray-800 rounded-lg p-4">
-              <h2 className="text-lg font-semibold mb-2">Controls</h2>
-              <ul className="text-sm text-gray-400 space-y-1">
-                <li>• Drag to rotate camera</li>
-                <li>• Scroll to zoom in/out</li>
-                <li>• Right-drag to pan</li>
-              </ul>
+            <div className="bg-gray-800 rounded-lg p-3 text-xs text-gray-400">
+              Drag to rotate • Scroll to zoom • Right-drag to pan
             </div>
           </>
         )}
