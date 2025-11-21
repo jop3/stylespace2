@@ -96,6 +96,38 @@ export const SAMPLE_VRMS: SampleVRM[] = [
     author: 'madjin',
     license: 'CC0',
   },
+  {
+    id: 'darkness-shibu',
+    name: 'Darkness',
+    url: '/vrm/darkness-shibu.vrm',
+    thumbnail: '🖤',
+    author: 'VRoid Project',
+    license: 'CC0',
+  },
+  {
+    id: 'sakurada-fumiriya',
+    name: 'Fumiriya',
+    url: '/vrm/sakurada-fumiriya.vrm',
+    thumbnail: '💜',
+    author: 'VRoid Project',
+    license: 'CC0',
+  },
+  {
+    id: 'hair-sample-female',
+    name: 'Hair Female',
+    url: '/vrm/hair-sample-female.vrm',
+    thumbnail: '👩‍🦱',
+    author: 'VRoid Project',
+    license: 'CC0',
+  },
+  {
+    id: 'hair-sample-male',
+    name: 'Hair Male',
+    url: '/vrm/hair-sample-male.vrm',
+    thumbnail: '👨‍🦱',
+    author: 'VRoid Project',
+    license: 'CC0',
+  },
 ]
 
 interface VRMGalleryProps {
