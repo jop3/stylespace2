@@ -39,6 +39,34 @@ export default function TextureSwapper({ vrm, onTextureApplied }: TextureSwapper
   const [showPrompts, setShowPrompts] = useState(false)
   const [activePrompt, setActivePrompt] = useState<keyof typeof TEXTURE_PROMPTS>('pattern')
   const [originalTextures] = useState<Map<THREE.Material, THREE.Texture | null>>(new Map())
+  const [suggestedMesh, setSuggestedMesh] = useState<string | null>(null)
+
+  // Analyze filename/image to suggest which mesh to apply to
+  const analyzeMeshTarget = (filename: string): string | null => {
+    const lower = filename.toLowerCase()
+
+    // Check filename for keywords
+    const meshHints: Record<string, string[]> = {
+      'Face': ['face', 'head', 'skin', 'makeup', 'eye', 'mouth', 'nose'],
+      'Body': ['body', 'torso', 'chest', 'shirt', 'top', 'dress', 'jacket', 'coat'],
+      'Hair': ['hair', 'wig'],
+      'Leg': ['leg', 'pants', 'trouser', 'skirt', 'shorts'],
+      'Arm': ['arm', 'sleeve', 'glove', 'hand'],
+      'Foot': ['foot', 'shoe', 'boot', 'sock', 'feet'],
+    }
+
+    // Find matching group
+    for (const [groupName, keywords] of Object.entries(meshHints)) {
+      if (keywords.some(keyword => lower.includes(keyword))) {
+        // Check if this group exists in the mesh groups
+        if (meshGroups.has(groupName)) {
+          return groupName
+        }
+      }
+    }
+
+    return null
+  }
 
   // Scan VRM for meshes and group by base name
   useEffect(() => {
@@ -92,6 +120,13 @@ export default function TextureSwapper({ vrm, onTextureApplied }: TextureSwapper
   const handleFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0]
     if (!file) return
+
+    // Analyze filename to suggest mesh
+    const suggestion = analyzeMeshTarget(file.name)
+    if (suggestion && groupedMode) {
+      setSuggestedMesh(suggestion)
+      setSelectedGroup(suggestion)
+    }
 
     let meshesToApply: THREE.Mesh[] = []
 
@@ -233,11 +268,21 @@ export default function TextureSwapper({ vrm, onTextureApplied }: TextureSwapper
           </button>
         </div>
 
+        {/* Auto-detection hint */}
+        {suggestedMesh && (
+          <div className="text-xs bg-blue-900/50 text-blue-200 p-2 rounded border border-blue-700">
+            💡 Auto-selected: {suggestedMesh}
+          </div>
+        )}
+
         {/* Mesh selector */}
         {groupedMode ? (
           <select
             value={selectedGroup || ''}
-            onChange={(e) => setSelectedGroup(e.target.value)}
+            onChange={(e) => {
+              setSelectedGroup(e.target.value)
+              setSuggestedMesh(null)
+            }}
             className="w-full bg-gray-900 text-white p-2 rounded border border-gray-700"
           >
             {Array.from(meshGroups.entries()).map(([groupName, groupMeshes]) => (
@@ -249,7 +294,10 @@ export default function TextureSwapper({ vrm, onTextureApplied }: TextureSwapper
         ) : (
           <select
             value={selectedMesh || ''}
-            onChange={(e) => setSelectedMesh(e.target.value)}
+            onChange={(e) => {
+              setSelectedMesh(e.target.value)
+              setSuggestedMesh(null)
+            }}
             className="w-full bg-gray-900 text-white p-2 rounded border border-gray-700"
           >
             {allMeshes.map((mesh, index) => (

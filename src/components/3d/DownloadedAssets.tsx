@@ -39,6 +39,34 @@ export default function DownloadedAssets({ vrm, onModelSelect, currentModelUrl }
   const [allMeshes, setAllMeshes] = useState<{ name: string; mesh: THREE.Mesh }[]>([])
   const [groupedMode, setGroupedMode] = useState(true)
   const [originalTextures] = useState<Map<THREE.Material, THREE.Texture | null>>(new Map())
+  const [suggestedMesh, setSuggestedMesh] = useState<string | null>(null)
+
+  // Analyze asset name to suggest which mesh to apply to
+  const analyzeMeshTarget = (assetName: string): string | null => {
+    const lower = assetName.toLowerCase()
+
+    // Check asset name for keywords
+    const meshHints: Record<string, string[]> = {
+      'Face': ['face', 'head', 'skin', 'makeup', 'eye', 'mouth', 'nose'],
+      'Body': ['body', 'torso', 'chest', 'shirt', 'top', 'dress', 'jacket', 'coat'],
+      'Hair': ['hair', 'wig'],
+      'Leg': ['leg', 'pants', 'trouser', 'skirt', 'shorts'],
+      'Arm': ['arm', 'sleeve', 'glove', 'hand'],
+      'Foot': ['foot', 'shoe', 'boot', 'sock', 'feet'],
+    }
+
+    // Find matching group
+    for (const [groupName, keywords] of Object.entries(meshHints)) {
+      if (keywords.some(keyword => lower.includes(keyword))) {
+        // Check if this group exists in the mesh groups
+        if (meshGroups.has(groupName)) {
+          return groupName
+        }
+      }
+    }
+
+    return null
+  }
 
   // Load asset manifest on mount
   useEffect(() => {
@@ -101,6 +129,13 @@ export default function DownloadedAssets({ vrm, onModelSelect, currentModelUrl }
 
   const handleTextureApply = (asset: DownloadedAsset) => {
     if (!vrm) return
+
+    // Analyze asset name to suggest mesh
+    const suggestion = analyzeMeshTarget(asset.name)
+    if (suggestion && groupedMode) {
+      setSuggestedMesh(suggestion)
+      setSelectedGroup(suggestion)
+    }
 
     let meshesToApply: THREE.Mesh[] = []
 
@@ -260,11 +295,21 @@ export default function DownloadedAssets({ vrm, onModelSelect, currentModelUrl }
                 </button>
               </div>
 
+              {/* Auto-detection hint */}
+              {suggestedMesh && (
+                <div className="text-xs bg-blue-900/50 text-blue-200 p-2 rounded border border-blue-700">
+                  💡 Auto-selected: {suggestedMesh}
+                </div>
+              )}
+
               {/* Mesh selector */}
               {groupedMode ? (
                 <select
                   value={selectedGroup || ''}
-                  onChange={(e) => setSelectedGroup(e.target.value)}
+                  onChange={(e) => {
+                    setSelectedGroup(e.target.value)
+                    setSuggestedMesh(null)
+                  }}
                   className="w-full bg-gray-900 text-white p-2 rounded border border-gray-700 text-sm"
                 >
                   {Array.from(meshGroups.entries()).map(([groupName, groupMeshes]) => (
@@ -276,7 +321,10 @@ export default function DownloadedAssets({ vrm, onModelSelect, currentModelUrl }
               ) : (
                 <select
                   value={selectedMesh || ''}
-                  onChange={(e) => setSelectedMesh(e.target.value)}
+                  onChange={(e) => {
+                    setSelectedMesh(e.target.value)
+                    setSuggestedMesh(null)
+                  }}
                   className="w-full bg-gray-900 text-white p-2 rounded border border-gray-700 text-sm"
                 >
                   {allMeshes.map((mesh, index) => (
