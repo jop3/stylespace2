@@ -40,32 +40,125 @@ export default function TextureSwapper({ vrm, onTextureApplied }: TextureSwapper
   const [activePrompt, setActivePrompt] = useState<keyof typeof TEXTURE_PROMPTS>('pattern')
   const [originalTextures] = useState<Map<THREE.Material, THREE.Texture | null>>(new Map())
   const [suggestedMesh, setSuggestedMesh] = useState<string | null>(null)
+  const [detectionConfidence, setDetectionConfidence] = useState<'low' | 'medium' | 'high' | null>(null)
+  const [alternativeSuggestions, setAlternativeSuggestions] = useState<string[]>([])
 
-  // Analyze filename/image to suggest which mesh to apply to
-  const analyzeMeshTarget = (filename: string): string | null => {
+  // Enhanced mesh detection with priority weighting and confidence scoring
+  const analyzeMeshTarget = (filename: string): {
+    meshName: string | null
+    confidence: 'low' | 'medium' | 'high' | null
+    alternatives: string[]
+  } => {
     const lower = filename.toLowerCase()
 
-    // Check filename for keywords
-    const meshHints: Record<string, string[]> = {
-      'Face': ['face', 'head', 'skin', 'makeup', 'eye', 'mouth', 'nose'],
-      'Body': ['body', 'torso', 'chest', 'shirt', 'top', 'dress', 'jacket', 'coat'],
-      'Hair': ['hair', 'wig'],
-      'Leg': ['leg', 'pants', 'trouser', 'skirt', 'shorts'],
-      'Arm': ['arm', 'sleeve', 'glove', 'hand'],
-      'Foot': ['foot', 'shoe', 'boot', 'sock', 'feet'],
+    // Priority-weighted keywords (higher priority = more specific/reliable)
+    const meshHints: Record<string, { high: string[]; medium: string[]; low: string[] }> = {
+      Face: {
+        high: ['face', 'facial', 'makeup', 'skintone', 'complexion'],
+        medium: ['head', 'skin', 'portrait'],
+        low: ['eye', 'mouth', 'nose', 'cheek', 'forehead'],
+      },
+      Body: {
+        high: ['torso', 'bodytexture', 'bodyskin'],
+        medium: ['body', 'chest', 'shirt', 'top', 'dress', 'jacket', 'coat', 'blouse', 'sweater'],
+        low: ['clothing', 'fabric', 'wear'],
+      },
+      Hair: {
+        high: ['hair', 'hairstyle', 'haircolor'],
+        medium: ['wig', 'bangs', 'ponytail'],
+        low: ['strand', 'curl'],
+      },
+      Leg: {
+        high: ['pants', 'trousers', 'jeans', 'leggings'],
+        medium: ['leg', 'skirt', 'shorts', 'legwear'],
+        low: ['thigh', 'knee', 'shin'],
+      },
+      Arm: {
+        high: ['sleeve', 'armwear', 'gloves'],
+        medium: ['arm', 'forearm', 'bicep'],
+        low: ['hand', 'wrist', 'elbow'],
+      },
+      Foot: {
+        high: ['shoe', 'boot', 'footwear', 'sneaker', 'sandal'],
+        medium: ['foot', 'feet', 'sock', 'stocking'],
+        low: ['toe', 'heel', 'ankle'],
+      },
     }
 
-    // Find matching group
-    for (const [groupName, keywords] of Object.entries(meshHints)) {
-      if (keywords.some(keyword => lower.includes(keyword))) {
-        // Check if this group exists in the mesh groups
-        if (meshGroups.has(groupName)) {
-          return groupName
+    // Score each mesh group
+    const scores: Record<string, number> = {}
+
+    for (const [groupName, priorities] of Object.entries(meshHints)) {
+      let score = 0
+
+      // Check high priority keywords (worth 10 points each)
+      for (const keyword of priorities.high) {
+        // Use word boundary detection for more accurate matching
+        const wordBoundaryRegex = new RegExp(`\\b${keyword}\\b`, 'i')
+        const containsRegex = new RegExp(keyword, 'i')
+
+        if (wordBoundaryRegex.test(lower)) {
+          score += 10 // Exact word match
+        } else if (containsRegex.test(lower)) {
+          score += 7 // Substring match (slightly less confident)
         }
+      }
+
+      // Check medium priority keywords (worth 5 points each)
+      for (const keyword of priorities.medium) {
+        const wordBoundaryRegex = new RegExp(`\\b${keyword}\\b`, 'i')
+        const containsRegex = new RegExp(keyword, 'i')
+
+        if (wordBoundaryRegex.test(lower)) {
+          score += 5
+        } else if (containsRegex.test(lower)) {
+          score += 3
+        }
+      }
+
+      // Check low priority keywords (worth 2 points each)
+      for (const keyword of priorities.low) {
+        const wordBoundaryRegex = new RegExp(`\\b${keyword}\\b`, 'i')
+        if (wordBoundaryRegex.test(lower)) {
+          score += 2
+        }
+      }
+
+      if (score > 0) {
+        scores[groupName] = score
       }
     }
 
-    return null
+    // Sort by score and filter to only existing mesh groups
+    const sortedMatches = Object.entries(scores)
+      .filter(([groupName]) => meshGroups.has(groupName))
+      .sort(([, a], [, b]) => b - a)
+
+    if (sortedMatches.length === 0) {
+      return { meshName: null, confidence: null, alternatives: [] }
+    }
+
+    const [bestMatch, bestScore] = sortedMatches[0]
+    const alternatives = sortedMatches.slice(1, 3).map(([name]) => name)
+
+    // Determine confidence based on score and gap to next best match
+    let confidence: 'low' | 'medium' | 'high'
+    const secondBestScore = sortedMatches[1]?.[1] || 0
+    const scoreGap = bestScore - secondBestScore
+
+    if (bestScore >= 10 && scoreGap >= 5) {
+      confidence = 'high' // Strong match with clear winner
+    } else if (bestScore >= 5 && scoreGap >= 2) {
+      confidence = 'medium' // Good match but less certain
+    } else {
+      confidence = 'low' // Weak or ambiguous match
+    }
+
+    return {
+      meshName: bestMatch,
+      confidence,
+      alternatives,
+    }
   }
 
   // Scan VRM for meshes and group by base name
@@ -122,10 +215,16 @@ export default function TextureSwapper({ vrm, onTextureApplied }: TextureSwapper
     if (!file) return
 
     // Analyze filename to suggest mesh
-    const suggestion = analyzeMeshTarget(file.name)
-    if (suggestion && groupedMode) {
-      setSuggestedMesh(suggestion)
-      setSelectedGroup(suggestion)
+    const detection = analyzeMeshTarget(file.name)
+    if (detection.meshName && groupedMode) {
+      setSuggestedMesh(detection.meshName)
+      setDetectionConfidence(detection.confidence)
+      setAlternativeSuggestions(detection.alternatives)
+      setSelectedGroup(detection.meshName)
+    } else {
+      setSuggestedMesh(null)
+      setDetectionConfidence(null)
+      setAlternativeSuggestions([])
     }
 
     let meshesToApply: THREE.Mesh[] = []
@@ -268,10 +367,43 @@ export default function TextureSwapper({ vrm, onTextureApplied }: TextureSwapper
           </button>
         </div>
 
-        {/* Auto-detection hint */}
-        {suggestedMesh && (
-          <div className="text-xs bg-blue-900/50 text-blue-200 p-2 rounded border border-blue-700">
-            💡 Auto-selected: {suggestedMesh}
+        {/* Auto-detection hint with confidence */}
+        {suggestedMesh && detectionConfidence && (
+          <div className="space-y-1">
+            <div
+              className={`text-xs p-2 rounded border ${
+                detectionConfidence === 'high'
+                  ? 'bg-green-900/50 text-green-200 border-green-700'
+                  : detectionConfidence === 'medium'
+                  ? 'bg-blue-900/50 text-blue-200 border-blue-700'
+                  : 'bg-yellow-900/50 text-yellow-200 border-yellow-700'
+              }`}
+            >
+              <div className="flex items-center gap-2">
+                <span>
+                  {detectionConfidence === 'high'
+                    ? '✓'
+                    : detectionConfidence === 'medium'
+                    ? '💡'
+                    : '?'}
+                </span>
+                <span className="font-semibold">
+                  Auto-selected: {suggestedMesh}
+                </span>
+                <span className="ml-auto text-xs opacity-75">
+                  {detectionConfidence === 'high'
+                    ? 'High confidence'
+                    : detectionConfidence === 'medium'
+                    ? 'Medium confidence'
+                    : 'Low confidence'}
+                </span>
+              </div>
+              {alternativeSuggestions.length > 0 && (
+                <div className="mt-1 text-xs opacity-75">
+                  Also consider: {alternativeSuggestions.join(', ')}
+                </div>
+              )}
+            </div>
           </div>
         )}
 
@@ -282,6 +414,8 @@ export default function TextureSwapper({ vrm, onTextureApplied }: TextureSwapper
             onChange={(e) => {
               setSelectedGroup(e.target.value)
               setSuggestedMesh(null)
+              setDetectionConfidence(null)
+              setAlternativeSuggestions([])
             }}
             className="w-full bg-gray-900 text-white p-2 rounded border border-gray-700"
           >
@@ -297,6 +431,8 @@ export default function TextureSwapper({ vrm, onTextureApplied }: TextureSwapper
             onChange={(e) => {
               setSelectedMesh(e.target.value)
               setSuggestedMesh(null)
+              setDetectionConfidence(null)
+              setAlternativeSuggestions([])
             }}
             className="w-full bg-gray-900 text-white p-2 rounded border border-gray-700"
           >
