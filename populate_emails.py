@@ -45,9 +45,9 @@ def generate_emails(domain, name):
     return registrator_email, regular_email
 
 def main():
-    # Default to batch2, but can be changed
-    input_file = '/home/user/stylespace2/agencies_batch2.csv'
-    output_file = '/home/user/stylespace2/agencies_batch2.csv'
+    # Default to batch3, but can be changed
+    input_file = '/home/user/stylespace2/agencies_batch3.csv'
+    output_file = '/home/user/stylespace2/agencies_batch3.csv'
 
     rows = []
 
