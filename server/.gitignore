@@ -1,0 +1,9 @@
+node_modules/
+dist/
+storage/input/*
+storage/output/*
+storage/archive/*
+!storage/input/.gitkeep
+!storage/output/.gitkeep
+!storage/archive/.gitkeep
+.env

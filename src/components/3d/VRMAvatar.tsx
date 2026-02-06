@@ -15,7 +15,7 @@ export default function VRMAvatar({ url, onError, onVRMLoaded }: VRMAvatarProps)
 
   useEffect(() => {
     if (error && onError) {
-      onError(error)
+      onError(error.message)
     }
   }, [error, onError])
 

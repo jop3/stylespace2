@@ -1,7 +1,13 @@
-import { useState, useEffect } from 'react'
+import { useState, useEffect, useCallback } from 'react'
 import type { VRM } from '@pixiv/three-vrm'
-import * as THREE from 'three'
 import { type AssetCategory, ASSET_CATEGORIES } from '../../data/downloadedAssets'
+import { useMeshGroups } from '../../hooks/useMeshGroups'
+import { useSmartMeshDetection, type DetectionConfidence } from '../../hooks/useSmartMeshDetection'
+import {
+  applyTextureToMeshes,
+  createTextureFromImage,
+  isValidAssetPath,
+} from '../../utils/textureUtils'
 
 interface DownloadedAsset {
   id: string
@@ -14,9 +20,12 @@ interface DownloadedAssetsProps {
   vrm: VRM | null
   onModelSelect: (url: string, name: string) => void
   currentModelUrl: string | null
+  compact?: boolean
 }
 
-// Fetch the asset manifest from public folder
+/**
+ * Fetches the asset manifest from public folder
+ */
 async function fetchAssetManifest(): Promise<DownloadedAsset[]> {
   try {
     const response = await fetch('/downloads/manifest.json')
@@ -29,146 +38,41 @@ async function fetchAssetManifest(): Promise<DownloadedAsset[]> {
   return []
 }
 
-export default function DownloadedAssets({ vrm, onModelSelect, currentModelUrl }: DownloadedAssetsProps) {
+export default function DownloadedAssets({ vrm, onModelSelect, currentModelUrl, compact = false }: DownloadedAssetsProps) {
   const [assets, setAssets] = useState<DownloadedAsset[]>([])
   const [selectedCategory, setSelectedCategory] = useState<AssetCategory>('Models')
   const [loading, setLoading] = useState(true)
-  const [selectedGroup, setSelectedGroup] = useState<string | null>(null)
-  const [meshGroups, setMeshGroups] = useState<Map<string, THREE.Mesh[]>>(new Map())
-  const [selectedMesh, setSelectedMesh] = useState<string | null>(null)
-  const [allMeshes, setAllMeshes] = useState<{ name: string; mesh: THREE.Mesh }[]>([])
-  const [groupedMode, setGroupedMode] = useState(true)
-  const [originalTextures] = useState<Map<THREE.Material, THREE.Texture | null>>(new Map())
+  const [isApplying, setIsApplying] = useState(false)
+  const [loadError, setLoadError] = useState<string | null>(null)
+  const [showPicker, setShowPicker] = useState(false)
+
+  // Detection state
   const [suggestedMesh, setSuggestedMesh] = useState<string | null>(null)
-  const [detectionConfidence, setDetectionConfidence] = useState<'low' | 'medium' | 'high' | null>(null)
+  const [detectionConfidence, setDetectionConfidence] = useState<DetectionConfidence | null>(null)
   const [alternativeSuggestions, setAlternativeSuggestions] = useState<string[]>([])
 
-  // Enhanced mesh detection with priority weighting, confidence scoring, and category context
-  const analyzeMeshTarget = (
-    assetName: string,
-    category?: string
-  ): {
-    meshName: string | null
-    confidence: 'low' | 'medium' | 'high' | null
-    alternatives: string[]
-  } => {
-    const lower = assetName.toLowerCase()
-    const categoryLower = category?.toLowerCase() || ''
+  // Use shared hooks
+  const {
+    meshGroups,
+    allMeshes,
+    selectedGroup,
+    selectedMesh,
+    groupedMode,
+    setSelectedGroup,
+    setSelectedMesh,
+    toggleGroupedMode,
+    getSelectedMeshes,
+    resetSelectedTextures,
+  } = useMeshGroups(vrm)
 
-    // Priority-weighted keywords (higher priority = more specific/reliable)
-    const meshHints: Record<string, { high: string[]; medium: string[]; low: string[] }> = {
-      Face: {
-        high: ['face', 'facial', 'makeup', 'skintone', 'complexion'],
-        medium: ['head', 'skin', 'portrait'],
-        low: ['eye', 'mouth', 'nose', 'cheek', 'forehead'],
-      },
-      Body: {
-        high: ['torso', 'bodytexture', 'bodyskin'],
-        medium: ['body', 'chest', 'shirt', 'top', 'dress', 'jacket', 'coat', 'blouse', 'sweater'],
-        low: ['clothing', 'fabric', 'wear'],
-      },
-      Hair: {
-        high: ['hair', 'hairstyle', 'haircolor'],
-        medium: ['wig', 'bangs', 'ponytail'],
-        low: ['strand', 'curl'],
-      },
-      Leg: {
-        high: ['pants', 'trousers', 'jeans', 'leggings'],
-        medium: ['leg', 'skirt', 'shorts', 'legwear'],
-        low: ['thigh', 'knee', 'shin'],
-      },
-      Arm: {
-        high: ['sleeve', 'armwear', 'gloves'],
-        medium: ['arm', 'forearm', 'bicep'],
-        low: ['hand', 'wrist', 'elbow'],
-      },
-      Foot: {
-        high: ['shoe', 'boot', 'footwear', 'sneaker', 'sandal'],
-        medium: ['foot', 'feet', 'sock', 'stocking'],
-        low: ['toe', 'heel', 'ankle'],
-      },
-    }
+  const analyzeMeshTarget = useSmartMeshDetection(meshGroups)
 
-    // Score each mesh group
-    const scores: Record<string, number> = {}
-
-    for (const [groupName, priorities] of Object.entries(meshHints)) {
-      let score = 0
-
-      // Check high priority keywords (worth 10 points each)
-      for (const keyword of priorities.high) {
-        const wordBoundaryRegex = new RegExp(`\\b${keyword}\\b`, 'i')
-        const containsRegex = new RegExp(keyword, 'i')
-
-        if (wordBoundaryRegex.test(lower)) {
-          score += 10 // Exact word match
-        } else if (containsRegex.test(lower)) {
-          score += 7 // Substring match
-        }
-      }
-
-      // Check medium priority keywords (worth 5 points each)
-      for (const keyword of priorities.medium) {
-        const wordBoundaryRegex = new RegExp(`\\b${keyword}\\b`, 'i')
-        const containsRegex = new RegExp(keyword, 'i')
-
-        if (wordBoundaryRegex.test(lower)) {
-          score += 5
-        } else if (containsRegex.test(lower)) {
-          score += 3
-        }
-      }
-
-      // Check low priority keywords (worth 2 points each)
-      for (const keyword of priorities.low) {
-        const wordBoundaryRegex = new RegExp(`\\b${keyword}\\b`, 'i')
-        if (wordBoundaryRegex.test(lower)) {
-          score += 2
-        }
-      }
-
-      // Category context bonus (worth 3 points)
-      // If the asset category matches the body part, boost the score
-      if (categoryLower && categoryLower.includes(groupName.toLowerCase())) {
-        score += 3
-      }
-
-      if (score > 0) {
-        scores[groupName] = score
-      }
-    }
-
-    // Sort by score and filter to only existing mesh groups
-    const sortedMatches = Object.entries(scores)
-      .filter(([groupName]) => meshGroups.has(groupName))
-      .sort(([, a], [, b]) => b - a)
-
-    if (sortedMatches.length === 0) {
-      return { meshName: null, confidence: null, alternatives: [] }
-    }
-
-    const [bestMatch, bestScore] = sortedMatches[0]
-    const alternatives = sortedMatches.slice(1, 3).map(([name]) => name)
-
-    // Determine confidence based on score and gap to next best match
-    let confidence: 'low' | 'medium' | 'high'
-    const secondBestScore = sortedMatches[1]?.[1] || 0
-    const scoreGap = bestScore - secondBestScore
-
-    if (bestScore >= 10 && scoreGap >= 5) {
-      confidence = 'high' // Strong match with clear winner
-    } else if (bestScore >= 5 && scoreGap >= 2) {
-      confidence = 'medium' // Good match but less certain
-    } else {
-      confidence = 'low' // Weak or ambiguous match
-    }
-
-    return {
-      meshName: bestMatch,
-      confidence,
-      alternatives,
-    }
-  }
+  const clearDetectionHints = useCallback(() => {
+    setSuggestedMesh(null)
+    setDetectionConfidence(null)
+    setAlternativeSuggestions([])
+    setLoadError(null)
+  }, [])
 
   // Load asset manifest on mount
   useEffect(() => {
@@ -178,59 +82,19 @@ export default function DownloadedAssets({ vrm, onModelSelect, currentModelUrl }
     })
   }, [])
 
-  // Scan VRM for meshes and group by base name
-  useEffect(() => {
-    if (!vrm) {
-      setMeshGroups(new Map())
-      setSelectedGroup(null)
-      setAllMeshes([])
-      setSelectedMesh(null)
-      originalTextures.clear()
-      return
-    }
-
-    const groups = new Map<string, THREE.Mesh[]>()
-    const meshList: { name: string; mesh: THREE.Mesh }[] = []
-
-    vrm.scene.traverse((object) => {
-      if (object instanceof THREE.Mesh && object.material) {
-        // Add to mesh list for individual selection
-        const meshName = object.name || `Mesh ${meshList.length}`
-        meshList.push({ name: meshName, mesh: object })
-
-        // Store original textures
-        const materials = Array.isArray(object.material) ? object.material : [object.material]
-        materials.forEach((material) => {
-          if (material && 'map' in material && !originalTextures.has(material)) {
-            originalTextures.set(material, (material as any).map || null)
-          }
-        })
-
-        // Group by base name
-        const baseName = (object.name || 'Unknown').replace(/_?\d+$/, '') || 'Other'
-        if (!groups.has(baseName)) {
-          groups.set(baseName, [])
-        }
-        groups.get(baseName)!.push(object)
-      }
-    })
-
-    setAllMeshes(meshList)
-    setMeshGroups(groups)
-
-    const firstGroup = groups.keys().next().value
-    if (firstGroup) {
-      setSelectedGroup(firstGroup)
-    }
-    if (meshList.length > 0) {
-      setSelectedMesh(meshList[0].name)
-    }
-  }, [vrm, originalTextures])
-
   const filteredAssets = assets.filter((a) => a.category === selectedCategory)
 
   const handleTextureApply = (asset: DownloadedAsset) => {
     if (!vrm) return
+
+    // Validate asset path for security
+    if (!isValidAssetPath(asset.path)) {
+      setLoadError('Invalid asset path')
+      return
+    }
+
+    setLoadError(null)
+    setIsApplying(true)
 
     // Analyze asset name to suggest mesh (using category for better detection)
     const detection = analyzeMeshTarget(asset.name, asset.category)
@@ -240,104 +104,121 @@ export default function DownloadedAssets({ vrm, onModelSelect, currentModelUrl }
       setAlternativeSuggestions(detection.alternatives)
       setSelectedGroup(detection.meshName)
     } else {
-      setSuggestedMesh(null)
-      setDetectionConfidence(null)
-      setAlternativeSuggestions([])
+      clearDetectionHints()
     }
 
-    let meshesToApply: THREE.Mesh[] = []
-
-    if (groupedMode) {
-      // Apply to all meshes in the selected group
-      if (!selectedGroup) return
-      const groupMeshes = meshGroups.get(selectedGroup)
-      if (!groupMeshes || groupMeshes.length === 0) return
-      meshesToApply = groupMeshes
-    } else {
-      // Apply to single selected mesh
-      if (!selectedMesh) return
-      const meshInfo = allMeshes.find((m) => m.name === selectedMesh)
-      if (!meshInfo) return
-      meshesToApply = [meshInfo.mesh]
+    const meshesToApply = getSelectedMeshes()
+    if (meshesToApply.length === 0) {
+      setLoadError('No mesh selected')
+      setIsApplying(false)
+      return
     }
 
     const img = new Image()
     img.crossOrigin = 'anonymous'
+
     img.onload = () => {
-      const texture = new THREE.Texture(img)
-      texture.needsUpdate = true
-      texture.wrapS = THREE.RepeatWrapping
-      texture.wrapT = THREE.RepeatWrapping
-      texture.colorSpace = THREE.SRGBColorSpace
-
-      // Apply texture to selected meshes
-      meshesToApply.forEach((mesh) => {
-        const materials = Array.isArray(mesh.material)
-          ? mesh.material
-          : [mesh.material]
-
-        materials.forEach((material) => {
-          // Handle various material types (MeshStandardMaterial, MeshBasicMaterial, MToonMaterial, etc.)
-          if (material && 'map' in material) {
-            // Store original properties to preserve transparency, etc.
-            const wasTransparent = material.transparent
-            const originalOpacity = (material as any).opacity
-            const originalAlphaMap = (material as any).alphaMap
-
-            (material as THREE.MeshStandardMaterial).map = texture
-
-            // Restore transparency properties
-            material.transparent = wasTransparent
-            if (originalOpacity !== undefined) {
-              (material as any).opacity = originalOpacity
-            }
-            if (originalAlphaMap !== undefined) {
-              (material as any).alphaMap = originalAlphaMap
-            }
-
-            material.needsUpdate = true
-          }
-        })
+      const texture = createTextureFromImage(img)
+      applyTextureToMeshes({
+        texture,
+        meshes: meshesToApply,
+        onComplete: () => {
+          setIsApplying(false)
+        },
       })
     }
+
+    img.onerror = () => {
+      setLoadError(`Failed to load image: ${asset.name}`)
+      setIsApplying(false)
+    }
+
     img.src = asset.path
   }
 
   const handleResetTextures = () => {
-    if (!vrm) return
+    resetSelectedTextures()
+    clearDetectionHints()
+  }
 
-    let meshesToReset: THREE.Mesh[] = []
+  const handleGroupChange = (value: string) => {
+    setSelectedGroup(value)
+    clearDetectionHints()
+  }
 
-    if (groupedMode) {
-      // Reset all meshes in the selected group
-      if (!selectedGroup) return
-      const groupMeshes = meshGroups.get(selectedGroup)
-      if (!groupMeshes || groupMeshes.length === 0) return
-      meshesToReset = groupMeshes
-    } else {
-      // Reset single selected mesh
-      if (!selectedMesh) return
-      const meshInfo = allMeshes.find((m) => m.name === selectedMesh)
-      if (!meshInfo) return
-      meshesToReset = [meshInfo.mesh]
-    }
-
-    // Restore original textures
-    meshesToReset.forEach((mesh) => {
-      const materials = Array.isArray(mesh.material)
-        ? mesh.material
-        : [mesh.material]
-
-      materials.forEach((material) => {
-        if (material && 'map' in material && originalTextures.has(material)) {
-          (material as THREE.MeshStandardMaterial).map = originalTextures.get(material) || null
-          material.needsUpdate = true
-        }
-      })
-    })
+  const handleMeshChange = (value: string) => {
+    setSelectedMesh(value)
+    clearDetectionHints()
   }
 
   const isTextureCategory = selectedCategory !== 'Models'
+
+  // Get model assets for compact mode
+  const modelAssets = assets.filter((a) => a.category === 'Models')
+
+  // Compact mode - just a button that opens a model picker
+  if (compact) {
+    if (loading) {
+      return (
+        <button
+          disabled
+          className="w-full h-touch flex items-center justify-center gap-2 bg-gray-100 text-gray-400 rounded-kid-lg font-semibold"
+        >
+          Loading...
+        </button>
+      )
+    }
+
+    if (modelAssets.length === 0) {
+      return (
+        <button
+          disabled
+          className="w-full h-touch flex items-center justify-center gap-2 bg-gray-100 text-gray-400 rounded-kid-lg font-semibold"
+        >
+          No Models Available
+        </button>
+      )
+    }
+
+    return (
+      <div className="relative">
+        <button
+          onClick={() => setShowPicker(!showPicker)}
+          className="w-full h-touch flex items-center justify-center gap-2 bg-mint text-white rounded-kid-lg font-semibold shadow-kid hover:shadow-glow-mint transition-all"
+        >
+          <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+            <path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2" />
+            <circle cx="12" cy="7" r="4" />
+          </svg>
+          Browse Models
+        </button>
+
+        {showPicker && (
+          <div className="absolute bottom-full left-0 right-0 mb-2 bg-white rounded-kid-lg shadow-kid-lg border border-gray-200 p-3 max-h-60 overflow-y-auto z-dropdown">
+            <div className="grid grid-cols-2 gap-2">
+              {modelAssets.map((asset) => (
+                <button
+                  key={asset.id}
+                  onClick={() => {
+                    onModelSelect(asset.path, asset.name)
+                    setShowPicker(false)
+                  }}
+                  className={`p-3 rounded-kid text-center transition-all ${
+                    currentModelUrl === asset.path
+                      ? 'bg-mint/20 ring-2 ring-mint'
+                      : 'bg-gray-50 hover:bg-gray-100'
+                  }`}
+                >
+                  <div className="text-2xl mb-1">🧑</div>
+                  <div className="text-kid-xs font-medium text-gray-700 truncate">{asset.name}</div>
+                </button>
+              ))}
+            </div>
+          </div>
+        )}
+      </div>
+    )
+  }
 
   if (loading) {
     return (
@@ -389,8 +270,9 @@ export default function DownloadedAssets({ vrm, onModelSelect, currentModelUrl }
               <div className="flex items-center gap-2">
                 <label className="text-xs text-gray-400">Apply to:</label>
                 <button
-                  onClick={() => setGroupedMode(!groupedMode)}
+                  onClick={toggleGroupedMode}
                   className="text-xs px-2 py-1 rounded bg-gray-700 hover:bg-gray-600 transition-colors"
+                  title={groupedMode ? 'Switch to individual mesh selection' : 'Switch to grouped selection'}
                 >
                   {groupedMode ? 'Grouped' : 'Individual'} ⇄
                 </button>
@@ -443,16 +325,23 @@ export default function DownloadedAssets({ vrm, onModelSelect, currentModelUrl }
                 </div>
               )}
 
+              {/* Error message */}
+              {loadError && (
+                <div className="text-xs p-2 rounded border bg-red-900/50 text-red-200 border-red-700">
+                  {loadError}
+                </div>
+              )}
+
+              {/* Loading indicator */}
+              {isApplying && (
+                <div className="text-xs text-gray-500">Applying texture...</div>
+              )}
+
               {/* Mesh selector */}
               {groupedMode ? (
                 <select
                   value={selectedGroup || ''}
-                  onChange={(e) => {
-                    setSelectedGroup(e.target.value)
-                    setSuggestedMesh(null)
-                    setDetectionConfidence(null)
-                    setAlternativeSuggestions([])
-                  }}
+                  onChange={(e) => handleGroupChange(e.target.value)}
                   className="w-full bg-gray-900 text-white p-2 rounded border border-gray-700 text-sm"
                 >
                   {Array.from(meshGroups.entries()).map(([groupName, groupMeshes]) => (
@@ -464,12 +353,7 @@ export default function DownloadedAssets({ vrm, onModelSelect, currentModelUrl }
               ) : (
                 <select
                   value={selectedMesh || ''}
-                  onChange={(e) => {
-                    setSelectedMesh(e.target.value)
-                    setSuggestedMesh(null)
-                    setDetectionConfidence(null)
-                    setAlternativeSuggestions([])
-                  }}
+                  onChange={(e) => handleMeshChange(e.target.value)}
                   className="w-full bg-gray-900 text-white p-2 rounded border border-gray-700 text-sm"
                 >
                   {allMeshes.map((mesh, index) => (
@@ -494,11 +378,12 @@ export default function DownloadedAssets({ vrm, onModelSelect, currentModelUrl }
                     handleTextureApply(asset)
                   }
                 }}
+                disabled={isApplying}
                 className={`p-2 rounded-lg text-center transition-all ${
                   selectedCategory === 'Models' && currentModelUrl === asset.path
                     ? 'bg-purple-600 ring-2 ring-purple-400'
                     : 'bg-gray-700 hover:bg-gray-600'
-                }`}
+                } ${isApplying ? 'opacity-50 cursor-not-allowed' : ''}`}
                 title={asset.name}
               >
                 {selectedCategory === 'Models' ? (
